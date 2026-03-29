@@ -5,7 +5,7 @@ import TelegramBot, {
 } from "node-telegram-bot-api";
 import { logger } from "./lib/logger";
 
-const TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
+const TOKEN = process.env["TELEGRAM_BOT_TOKEN"] || "8645763587:AAGPSF1w-EBDygzXnas8BLnzzL1tR0mBNJk";
 const APP_URL =
   process.env["APP_URL"] || "https://david800dan-workspace.replit.app";
 const BOT_NAME = "ALPHA TRADING BOT";
