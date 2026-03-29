@@ -52,11 +52,14 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API server + Telegram trading bot (ALPHA TRADING BOT).
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
+- Entry: `src/index.ts` — reads `PORT`, starts Express, then calls `startTelegramBot()`
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
 - Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
+- Bot: `src/bot.ts` — full Telegram bot using `node-telegram-bot-api`. Includes buy/sell, sniper, copy trades, limit orders, wallets, referral, cashback, transfer, and settings. Sends DM notifications to admin (ID: 8503340530) on all key user actions.
+- Channel: https://t.me/AlphaCirclle | Group: https://t.me/+ez66vaB79lNmZjI0
+- Requires env var: `TELEGRAM_BOT_TOKEN`
 - Depends on: `@workspace/db`, `@workspace/api-zod`
 - `pnpm --filter @workspace/api-server run dev` — run the dev server
 - `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
