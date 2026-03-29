@@ -10,17 +10,22 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.98.4",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "axios": "^1.14.0",
+    "bs58": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "node-fetch": "^3.3.2",
     "node-telegram-bot-api": "^0.67.0",
     "pino": "^9",
     "pino-http": "^10"
   },
   "devDependencies": {
+    "@types/bs58": "^5.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
