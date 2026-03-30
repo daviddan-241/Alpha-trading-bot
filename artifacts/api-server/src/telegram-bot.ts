@@ -533,22 +533,32 @@ export async function startTelegramBot(): Promise<void> {
   const bot = new TelegramBot(TOKEN, { polling: false });
   botInstance = bot;
 
-  // Register the webhook with Telegram — this permanently kills any polling instance.
-  // Once a webhook is set Telegram ignores all getUpdates (polling) requests.
-  const domain = process.env["REPLIT_DOMAINS"] || process.env["APP_DOMAIN"] || "";
-  const webhookUrl = domain
-    ? `https://${domain}/api/telegram-webhook`
-    : "";
+  // Determine this instance's public URL — works on both Replit and Render.
+  // Whoever starts last wins: they re-register the webhook to themselves.
+  // Replit:  REPLIT_DOMAINS  → https://<domain>/api/telegram-webhook
+  // Render:  RENDER_EXTERNAL_URL → https://<url>/api/telegram-webhook
+  const replitDomain = process.env["REPLIT_DOMAINS"];
+  const renderUrl = process.env["RENDER_EXTERNAL_URL"];
+  const customDomain = process.env["APP_DOMAIN"];
+
+  let webhookUrl = "";
+  if (replitDomain) {
+    webhookUrl = `https://${replitDomain}/api/telegram-webhook`;
+  } else if (renderUrl) {
+    webhookUrl = `${renderUrl.replace(/\/$/, "")}/api/telegram-webhook`;
+  } else if (customDomain) {
+    webhookUrl = `https://${customDomain}/api/telegram-webhook`;
+  }
 
   if (webhookUrl) {
     try {
       await bot.setWebHook(webhookUrl, { drop_pending_updates: true } as Parameters<typeof bot.setWebHook>[1]);
-      logger.info({ webhookUrl }, "Webhook registered — polling instances terminated");
+      logger.info({ webhookUrl }, "Webhook registered — this instance is now active");
     } catch (e) {
       logger.error({ e }, "Failed to set webhook");
     }
   } else {
-    logger.warn("No domain found — webhook not registered");
+    logger.warn("No domain found — set RENDER_EXTERNAL_URL or APP_DOMAIN to register webhook");
   }
 
   logger.info("ALPHA TRADING BOT started (webhook mode)");
