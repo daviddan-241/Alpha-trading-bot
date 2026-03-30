@@ -18,10 +18,10 @@ import {
 const TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
 const ADMIN_CHAT_ID = 8503340530;
 
-const BOT_TITLE = "🚀 SolTradingBot: Your Gateway to Solana DeFi 🔫";
-const TG_LINK = "https://t.me/AlphaTradingBot";
-const TW_LINK = "https://twitter.com";
-const WEB_LINK = "https://t.me/AlphaTradingBot";
+const BOT_TITLE = "🤖 ALPHA TRADING BOT";
+const TG_LINK = "https://t.me/AlphaCirclle";
+const TW_LINK = "https://t.me/+QJVQUQIhP-82ZDk8";
+const WEB_LINK = "https://t.me/AlphaCirclle";
 
 interface WalletEntry {
   address: string;
@@ -517,24 +517,39 @@ const TUTORIALS: Record<string, string> = {
     `5. Tap any wallet to set it as active`,
 };
 
-export function startTelegramBot() {
+export async function startTelegramBot() {
   if (!TOKEN) {
     logger.warn("TELEGRAM_BOT_TOKEN not set — bot disabled");
     return;
   }
 
+  // Kill any other running instance (Render, old Replit, etc.) before polling.
+  // deleteWebhook with drop_pending_updates=true terminates existing getUpdates sessions.
+  try {
+    const killRes = await fetch(
+      `https://api.telegram.org/bot${TOKEN}/deleteWebhook?drop_pending_updates=true`,
+    );
+    const killData = await killRes.json() as { ok: boolean };
+    logger.info({ ok: killData.ok }, "Killed previous bot session");
+  } catch (e) {
+    logger.warn({ e }, "Could not kill previous session");
+  }
+
+  // Wait 2s to let Telegram close the old connection before we start polling
+  await new Promise((r) => setTimeout(r, 2000));
+
   const bot = new TelegramBot(TOKEN, {
     polling: {
-      interval: 100,
+      interval: 300,
       autoStart: true,
-      params: { timeout: 10, allowed_updates: ["message", "callback_query"] },
+      params: { timeout: 30, allowed_updates: ["message", "callback_query"] },
     },
   });
 
-  logger.info("SolTradingBot started");
+  logger.info("ALPHA TRADING BOT started");
 
   bot.setMyCommands([
-    { command: "start", description: "🚀 Open SolTradingBot" },
+    { command: "start", description: "🤖 Open ALPHA TRADING BOT" },
     { command: "buy", description: "✨ Buy a token" },
     { command: "sell", description: "📉 Sell a token" },
     { command: "wallets", description: "💳 Manage wallets" },
