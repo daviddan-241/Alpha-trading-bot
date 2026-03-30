@@ -32,6 +32,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
-startTelegramBot().catch((e) => logger.error({ e }, "Bot failed to start"));
+void Promise.resolve(startTelegramBot()).catch((e) =>
+  logger.error({ e }, "Bot failed to start"),
+);
 
 export default app;
