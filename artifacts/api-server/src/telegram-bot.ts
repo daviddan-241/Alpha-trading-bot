@@ -517,36 +517,41 @@ const TUTORIALS: Record<string, string> = {
     `5. Tap any wallet to set it as active`,
 };
 
+let botInstance: TelegramBot | null = null;
+
+export function getTelegramBot(): TelegramBot | null {
+  return botInstance;
+}
+
 export async function startTelegramBot(): Promise<void> {
   if (!TOKEN) {
     logger.warn("TELEGRAM_BOT_TOKEN not set — bot disabled");
-    return Promise.resolve();
+    return;
   }
 
-  // Kill any other running instance (Render, old Replit, etc.) before polling.
-  // deleteWebhook with drop_pending_updates=true terminates existing getUpdates sessions.
-  try {
-    const killRes = await fetch(
-      `https://api.telegram.org/bot${TOKEN}/deleteWebhook?drop_pending_updates=true`,
-    );
-    const killData = await killRes.json() as { ok: boolean };
-    logger.info({ ok: killData.ok }, "Killed previous bot session");
-  } catch (e) {
-    logger.warn({ e }, "Could not kill previous session");
+  // Create the bot in webhook mode (no polling) so Render/other instances can't fight us.
+  const bot = new TelegramBot(TOKEN, { polling: false });
+  botInstance = bot;
+
+  // Register the webhook with Telegram — this permanently kills any polling instance.
+  // Once a webhook is set Telegram ignores all getUpdates (polling) requests.
+  const domain = process.env["REPLIT_DOMAINS"] || process.env["APP_DOMAIN"] || "";
+  const webhookUrl = domain
+    ? `https://${domain}/api/telegram-webhook`
+    : "";
+
+  if (webhookUrl) {
+    try {
+      await bot.setWebHook(webhookUrl, { drop_pending_updates: true } as Parameters<typeof bot.setWebHook>[1]);
+      logger.info({ webhookUrl }, "Webhook registered — polling instances terminated");
+    } catch (e) {
+      logger.error({ e }, "Failed to set webhook");
+    }
+  } else {
+    logger.warn("No domain found — webhook not registered");
   }
 
-  // Wait 2s to let Telegram close the old connection before we start polling
-  await new Promise((r) => setTimeout(r, 2000));
-
-  const bot = new TelegramBot(TOKEN, {
-    polling: {
-      interval: 300,
-      autoStart: true,
-      params: { timeout: 30, allowed_updates: ["message", "callback_query"] },
-    },
-  });
-
-  logger.info("ALPHA TRADING BOT started");
+  logger.info("ALPHA TRADING BOT started (webhook mode)");
 
   bot.setMyCommands([
     { command: "start", description: "🤖 Open ALPHA TRADING BOT" },
@@ -1181,9 +1186,7 @@ export async function startTelegramBot(): Promise<void> {
     if (u.step === "main") showMain(chatId, name);
   });
 
-  bot.on("polling_error", (e) => logger.error({ e }, "Telegram polling error"));
-
-  return bot;
+  // Webhook mode: updates arrive via POST /api/telegram-webhook → bot.processUpdate()
 }
 
 // ── TRADE EXECUTION ──────────────────────────────────────────────────────────
