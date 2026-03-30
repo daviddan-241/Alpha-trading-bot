@@ -517,10 +517,10 @@ const TUTORIALS: Record<string, string> = {
     `5. Tap any wallet to set it as active`,
 };
 
-export async function startTelegramBot() {
+export async function startTelegramBot(): Promise<void> {
   if (!TOKEN) {
     logger.warn("TELEGRAM_BOT_TOKEN not set — bot disabled");
-    return;
+    return Promise.resolve();
   }
 
   // Kill any other running instance (Render, old Replit, etc.) before polling.
