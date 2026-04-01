@@ -34,6 +34,19 @@ export function keypairFromPrivateKey(privKeyBase58: string): Keypair {
   return Keypair.fromSecretKey(secretKey);
 }
 
+export async function keypairFromMnemonic(mnemonic: string): Promise<Keypair> {
+  const bip39 = await import("bip39");
+  const { derivePath } = await import("ed25519-hd-key");
+  const seed = bip39.mnemonicToSeedSync(mnemonic.trim());
+  const derived = derivePath("m/44'/501'/0'/0'", seed.toString("hex"));
+  return Keypair.fromSeed(derived.key);
+}
+
+export function isValidMnemonic(phrase: string): boolean {
+  const words = phrase.trim().split(/\s+/);
+  return words.length === 12 || words.length === 24;
+}
+
 export async function getSolBalance(address: string): Promise<string> {
   try {
     const pk = new PublicKey(address);
@@ -62,20 +75,69 @@ export async function getRealSolPrice(): Promise<string> {
   return (80 + Math.random() * 12).toFixed(2);
 }
 
-export async function getTokenInfo(mintAddress: string): Promise<{
+export interface TokenInfo {
   price: string;
   marketCap: string;
   volume24h: string;
   name: string;
   symbol: string;
-} | null> {
+  priceChange24h: string;
+  liquidity: string;
+  dexUrl: string;
+}
+
+export async function getTokenInfo(mintAddress: string): Promise<TokenInfo | null> {
+  try {
+    const resp = await fetch(
+      `https://api.dexscreener.com/latest/dex/tokens/${mintAddress}`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    const json = (await resp.json()) as {
+      pairs?: Array<{
+        baseToken?: { name?: string; symbol?: string };
+        priceUsd?: string;
+        fdv?: number;
+        marketCap?: number;
+        volume?: { h24?: number };
+        priceChange?: { h24?: number };
+        liquidity?: { usd?: number };
+        url?: string;
+      }>;
+    };
+
+    const pairs = json?.pairs;
+    if (!pairs || pairs.length === 0) return null;
+
+    const pair = pairs[0]!;
+    const name = pair.baseToken?.name ?? mintAddress.slice(0, 8) + "...";
+    const symbol = pair.baseToken?.symbol ?? "TOKEN";
+    const price = pair.priceUsd ? parseFloat(pair.priceUsd).toFixed(8) : "N/A";
+    const mcap = pair.marketCap ?? pair.fdv ?? 0;
+    const vol = pair.volume?.h24 ?? 0;
+    const change = pair.priceChange?.h24 ?? 0;
+    const liq = pair.liquidity?.usd ?? 0;
+    const dexUrl = pair.url ?? `https://dexscreener.com/solana/${mintAddress}`;
+
+    return {
+      price,
+      marketCap: mcap > 0 ? formatUsd(mcap) : "N/A",
+      volume24h: vol > 0 ? formatUsd(vol) : "N/A",
+      name,
+      symbol,
+      priceChange24h: change !== 0 ? `${change > 0 ? "+" : ""}${change.toFixed(2)}%` : "0.00%",
+      liquidity: liq > 0 ? formatUsd(liq) : "N/A",
+      dexUrl,
+    };
+  } catch {
+  }
+
   try {
     const resp = await fetch(
       `https://price.jup.ag/v6/price?ids=${mintAddress}`,
       { signal: AbortSignal.timeout(5000) },
     );
     const json = (await resp.json()) as {
-      data?: { [key: string]: { price?: number; id?: string } };
+      data?: { [key: string]: { price?: number } };
     };
     const tokenData = json?.data?.[mintAddress];
     if (tokenData?.price) {
@@ -85,11 +147,22 @@ export async function getTokenInfo(mintAddress: string): Promise<{
         volume24h: "N/A",
         name: mintAddress.slice(0, 8) + "...",
         symbol: "TOKEN",
+        priceChange24h: "N/A",
+        liquidity: "N/A",
+        dexUrl: `https://dexscreener.com/solana/${mintAddress}`,
       };
     }
   } catch {
   }
+
   return null;
+}
+
+function formatUsd(n: number): string {
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(2)}K`;
+  return `$${n.toFixed(2)}`;
 }
 
 export async function transferSOL(

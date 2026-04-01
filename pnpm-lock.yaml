@@ -175,6 +175,9 @@ importers:
       axios:
         specifier: ^1.14.0
         version: 1.14.0
+      bip39:
+        specifier: ^3.1.0
+        version: 3.1.0
       bs58:
         specifier: ^6.0.0
         version: 6.0.0
@@ -187,6 +190,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.1(@types/pg@8.18.0)(pg@8.20.0)
+      ed25519-hd-key:
+        specifier: ^1.3.0
+        version: 1.3.0
       express:
         specifier: ^5
         version: 5.2.1
@@ -1710,6 +1716,9 @@ packages:
   bcrypt-pbkdf@1.0.2:
     resolution: {integrity: sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==}
 
+  bip39@3.1.0:
+    resolution: {integrity: sha512-c9kiwdk45Do5GL0vJMe7tS95VjCii65mYAH7DfWl3uW8AVzXKQVUm64i3hzVybBDMp9r7j9iNxR85+ul8MdN/A==}
+
   bl@1.2.3:
     resolution: {integrity: sha512-pvcNpa0UU69UT341rO6AYy4FVAIkUHuZXRIWbq+zHnsVcRzDDjIAhGuuYoi0d//cwIwtt4pkpKycWEfjdV+vww==}
 
@@ -1785,6 +1794,10 @@ packages:
     resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
     engines: {node: '>= 20.19.0'}
 
+  cipher-base@1.0.7:
+    resolution: {integrity: sha512-Mz9QMT5fJe7bKI7MH31UilT5cEK5EHHRCccw/YRFsRY47AuNgaV6HY3rscp0/I4Q+tTW/5zoqpSeRRI54TkDWA==}
+    engines: {node: '>= 0.10'}
+
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
 
@@ -1850,6 +1863,12 @@ packages:
   cors@2.8.6:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
+
+  create-hash@1.2.0:
+    resolution: {integrity: sha512-z00bCGNHDG8mHAkP7CtT1qVu+bFQUPjYq/4Iv3C3kWjTFV10zIjfSoeqXo9Asws8gwSHDGj/hl2u4OGIjapeCg==}
+
+  create-hmac@1.1.7:
+    resolution: {integrity: sha512-MJG9liiZ+ogc4TzUwuvbER1JRdgvUFSB5+VR/g5h82fGaIRWMWddtKBHi7/sVhfjQZ6SehlyhvQYrcYkaUIpLg==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -2092,6 +2111,9 @@ packages:
 
   ecc-jsbn@0.1.2:
     resolution: {integrity: sha512-eh9O+hwRHNbG4BLTjEl3nw044CkGm5X6LoaCf7LPp7UU8Qrt47JYNi6nPX8xjW97TKGKm1ouctg0QSpZe9qrnw==}
+
+  ed25519-hd-key@1.3.0:
+    resolution: {integrity: sha512-IWwAyiiuJQhgu3L8NaHb68eJxTu2pgCwxIBdgpLJdKpYZM46+AXePSVTr7fkNKaUOfOL4IrjEUaQvyVRIDP7fg==}
 
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
@@ -2435,6 +2457,10 @@ packages:
     resolution: {integrity: sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw==}
     engines: {node: '>= 0.4'}
 
+  hash-base@3.1.2:
+    resolution: {integrity: sha512-Bb33KbowVTIj5s7Ked1OsqHUeCpz//tPwR+E2zJgJKo9Z5XolZ9b6bdUgjmYlwnWhoOQKoTd1TYToZGn5mAYOg==}
+    engines: {node: '>= 0.8'}
+
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
@@ -2727,6 +2753,9 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
+
+  md5.js@1.3.5:
+    resolution: {integrity: sha512-xitP+WxNPcTTOgnTJcrhM0xvdPepipPSf3I8EIpGKeFLjt3PlJLIDG3u8EX53ZIubkb+5U2+3rELYpEhHhzdkg==}
 
   mdurl@2.0.0:
     resolution: {integrity: sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w==}
@@ -3201,6 +3230,10 @@ packages:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
 
+  ripemd160@2.0.3:
+    resolution: {integrity: sha512-5Di9UC0+8h1L6ZD2d7awM7E/T4uA1fJRlx6zk/NvdCCVEoAnFqvHmCuNeIKoCeIixBX/q8uM+6ycDvF8woqosA==}
+    engines: {node: '>= 0.8'}
+
   rollup@4.59.0:
     resolution: {integrity: sha512-2oMpl67a3zCH9H79LeMcbDhXW/UmWG/y2zuqnF2jQq5uq9TbM9TVyXvA4+t+ne2IIkBdrLpAaRQAvo7YI/Yyeg==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
@@ -3273,6 +3306,11 @@ packages:
 
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
+
+  sha.js@2.4.12:
+    resolution: {integrity: sha512-8LzC5+bvI45BjpfXU8V5fdU2mfeKiQe1D1gIMn7XUlF3OTUrpdJpPPH4EMAnF0DsHHdSZqCdSss5qCmJKuiO3w==}
+    engines: {node: '>= 0.10'}
+    hasBin: true
 
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
@@ -3416,6 +3454,10 @@ packages:
     resolution: {integrity: sha512-WMi/OQ2axVTf/ykqCQgXiIct+mSQDFdH2fkwhPwgEwvJ1kSzZRiinb0zF2Xb8u4+OqPChmyI6MEu4EezNJz+FQ==}
     hasBin: true
 
+  to-buffer@1.2.2:
+    resolution: {integrity: sha512-db0E3UJjcFhpDhAF4tLo03oli3pwl3dbnzXOUIlRKrp+ldk/VUxzpWYZENsw2SZiuBjHAk7DfB0VU7NKdpb6sw==}
+    engines: {node: '>= 0.4'}
+
   to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
@@ -3461,6 +3503,9 @@ packages:
 
   tweetnacl@0.14.5:
     resolution: {integrity: sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==}
+
+  tweetnacl@1.0.3:
+    resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
 
   type-is@2.0.1:
     resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
@@ -5180,6 +5225,10 @@ snapshots:
     dependencies:
       tweetnacl: 0.14.5
 
+  bip39@3.1.0:
+    dependencies:
+      '@noble/hashes': 1.8.0
+
   bl@1.2.3:
     dependencies:
       readable-stream: 2.3.8
@@ -5276,6 +5325,12 @@ snapshots:
     dependencies:
       readdirp: 5.0.0
 
+  cipher-base@1.0.7:
+    dependencies:
+      inherits: 2.0.4
+      safe-buffer: 5.2.1
+      to-buffer: 1.2.2
+
   class-variance-authority@0.7.1:
     dependencies:
       clsx: 2.1.1
@@ -5331,6 +5386,23 @@ snapshots:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
+
+  create-hash@1.2.0:
+    dependencies:
+      cipher-base: 1.0.7
+      inherits: 2.0.4
+      md5.js: 1.3.5
+      ripemd160: 2.0.3
+      sha.js: 2.4.12
+
+  create-hmac@1.1.7:
+    dependencies:
+      cipher-base: 1.0.7
+      create-hash: 1.2.0
+      inherits: 2.0.4
+      ripemd160: 2.0.3
+      safe-buffer: 5.2.1
+      sha.js: 2.4.12
 
   cross-spawn@7.0.6:
     dependencies:
@@ -5476,6 +5548,11 @@ snapshots:
     dependencies:
       jsbn: 0.1.1
       safer-buffer: 2.1.2
+
+  ed25519-hd-key@1.3.0:
+    dependencies:
+      create-hmac: 1.1.7
+      tweetnacl: 1.0.3
 
   ee-first@1.1.1: {}
 
@@ -5892,6 +5969,13 @@ snapshots:
     dependencies:
       has-symbols: 1.1.0
 
+  hash-base@3.1.2:
+    dependencies:
+      inherits: 2.0.4
+      readable-stream: 2.3.8
+      safe-buffer: 5.2.1
+      to-buffer: 1.2.2
+
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
@@ -6175,6 +6259,12 @@ snapshots:
       uc.micro: 2.1.0
 
   math-intrinsics@1.1.0: {}
+
+  md5.js@1.3.5:
+    dependencies:
+      hash-base: 3.1.2
+      inherits: 2.0.4
+      safe-buffer: 5.2.1
 
   mdurl@2.0.0: {}
 
@@ -6667,6 +6757,11 @@ snapshots:
 
   reusify@1.1.0: {}
 
+  ripemd160@2.0.3:
+    dependencies:
+      hash-base: 3.1.2
+      inherits: 2.0.4
+
   rollup@4.59.0:
     dependencies:
       '@types/estree': 1.0.8
@@ -6782,6 +6877,12 @@ snapshots:
       es-object-atoms: 1.1.1
 
   setprototypeof@1.2.0: {}
+
+  sha.js@2.4.12:
+    dependencies:
+      inherits: 2.0.4
+      safe-buffer: 5.2.1
+      to-buffer: 1.2.2
 
   shebang-command@2.0.0:
     dependencies:
@@ -6929,6 +7030,12 @@ snapshots:
     dependencies:
       tldts-core: 6.1.86
 
+  to-buffer@1.2.2:
+    dependencies:
+      isarray: 2.0.5
+      safe-buffer: 5.2.1
+      typed-array-buffer: 1.0.3
+
   to-regex-range@5.0.1:
     dependencies:
       is-number: 7.0.0
@@ -6968,6 +7075,8 @@ snapshots:
   tw-animate-css@1.4.0: {}
 
   tweetnacl@0.14.5: {}
+
+  tweetnacl@1.0.3: {}
 
   type-is@2.0.1:
     dependencies:

