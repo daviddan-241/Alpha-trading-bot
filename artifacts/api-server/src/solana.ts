@@ -34,11 +34,11 @@ export function keypairFromPrivateKey(privKeyBase58: string): Keypair {
   return Keypair.fromSecretKey(secretKey);
 }
 
-export async function keypairFromMnemonic(mnemonic: string): Promise<Keypair> {
+export async function keypairFromMnemonic(mnemonic: string, index = 0): Promise<Keypair> {
   const bip39 = await import("bip39");
   const { derivePath } = await import("ed25519-hd-key");
   const seed = bip39.mnemonicToSeedSync(mnemonic.trim());
-  const derived = derivePath("m/44'/501'/0'/0'", seed.toString("hex"));
+  const derived = derivePath(`m/44'/501'/${index}'/0'`, seed.toString("hex"));
   return Keypair.fromSeed(derived.key);
 }
 

