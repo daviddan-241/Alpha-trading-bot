@@ -747,7 +747,7 @@ function walletsKB(u: U): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       ...walletBtns,
-      [cb(tr(u, "btn_connect"), "wimport"), cb(tr(u, "btn_import_seed"), "wimport_seed")],
+      [cb(tr(u, "btn_connect"), "wimport_choose")],
       [cb(tr(u, "btn_gen_1"), "wgen_1"), cb(tr(u, "btn_gen_5"), "wgen_5"), cb(tr(u, "btn_gen_10"), "wgen_10")],
       [cb(tr(u, "btn_xfer_all"), "wxfer_all")],
       [cb(tr(u, "btn_wrap"), "wwrap"), cb(tr(u, "btn_unwrap"), "wunwrap")],
@@ -842,7 +842,7 @@ function tradesText(u: U): string {
 
 // ── REFERRAL ──────────────────────────────────────────────────────────────────
 function referralText(u: U, uid: number): string {
-  const refLink = `https://t.me/AlphaTradingBot?start=ref_${uid}`;
+  const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${uid}`;
   return (
     `${tr(u, "ref_title")}\n\n` +
     `${tr(u, "ref_link")}:\n<code>${refLink}</code>\n\n` +
@@ -1185,6 +1185,19 @@ export async function startTelegramBot(): Promise<void> {
       return upd(cap, { inline_keyboard: [[cb(tr(u, "view_wallets"), "wallets")], [cb(tr(u, "back"), "main")]] });
     }
 
+    if (data === "wimport_choose") {
+      return upd(
+        `🔐 <b>Connect Wallet</b>\n\nChoose how you want to import your wallet:`,
+        {
+          inline_keyboard: [
+            [cb("🔑 Import Private Key", "wimport")],
+            [cb(tr(u, "btn_import_seed"), "wimport_seed")],
+            [cb(tr(u, "cancel"), "wallets")],
+          ],
+        }
+      );
+    }
+
     if (data === "wimport") {
       u.step = "import_wallet";
       return upd(tr(u, "import_wallet_prompt"), { inline_keyboard: [[cb(tr(u, "cancel"), "wallets")]] });
@@ -1469,6 +1482,7 @@ export async function startTelegramBot(): Promise<void> {
     }
 
     if (u.step === "import_wallet") {
+      await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
       const keys = t.split(/[\s,;\n]+/).map(k => k.trim()).filter(k => k.length > 30);
       if (keys.length === 0) { await note(bot, chatId, tr(u, "err_invalid_key")); return; }
 
@@ -1504,6 +1518,7 @@ export async function startTelegramBot(): Promise<void> {
     }
 
     if (u.step === "import_seed") {
+      await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
       const phrase = t.trim();
       if (!isValidMnemonic(phrase)) { await note(bot, chatId, tr(u, "err_invalid_seed")); return; }
 
