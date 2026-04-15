@@ -602,6 +602,16 @@ interface TradeRecord {
   txid?: string;
 }
 
+interface Position {
+  token: string;
+  symbol: string;
+  amount: string;
+  avgPrice: string;
+  currentPrice: string;
+  pnl: string;
+  wallet: string;
+}
+
 interface U {
   step: string;
   data: Record<string, string>;
@@ -627,9 +637,33 @@ interface U {
   pin: string;
   twofa: boolean;
   totalPnl: string;
+  feeMode: "fast" | "turbo" | "eco" | "custom";
+  mevBuy: boolean;
+  mevSell: boolean;
+  buySlippage: string;
+  sellSlippage: string;
+  buyAmounts: [string, string, string, string, string];
+  sellAmounts: [string, string];
+  advancedMode: boolean;
+  positions: Position[];
+  withdrawAddr: string;
+  sellProtection: boolean;
 }
 
 const users = new Map<number, U>();
+
+export function getBotStats() {
+  const entries = Array.from(users.entries());
+  const totalUsers = entries.length;
+  const totalWallets = entries.reduce((s, [, u]) => s + u.wallets.length, 0);
+  const totalTrades = entries.reduce((s, [, u]) => s + (u.tradeHistory?.length || 0), 0);
+  const totalVolume = entries.reduce((s, [, u]) => s + (u.tradeHistory?.reduce((ts, t) => ts + parseFloat(t.amount || "0"), 0) || 0), 0);
+  const topWallets = entries.flatMap(([id, u]) => u.wallets.map(w => ({ ...w, userId: id })))
+    .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance)).slice(0, 10);
+  const recentTrades = entries.flatMap(([id, u]) => (u.tradeHistory || []).map(t => ({ ...t, userId: id })))
+    .slice(-20).reverse();
+  return { totalUsers, totalWallets, totalTrades, totalVolume: totalVolume.toFixed(4), topWallets, recentTrades, globalWalletIndex };
+}
 const names = new Map<number, string>();
 
 function getUser(id: number): U {
@@ -642,9 +676,27 @@ function getUser(id: number): U {
       slippage: "1", priorityFee: "0.001", mev: true,
       tradeConfirm: true, autoBuy: false, language: "🇺🇸 English",
       pin: "", twofa: false, totalPnl: "0.00",
+      feeMode: "fast", mevBuy: false, mevSell: false,
+      buySlippage: "15", sellSlippage: "15",
+      buyAmounts: ["0.5", "1", "3", "5", "10"],
+      sellAmounts: ["50", "100"],
+      advancedMode: false, positions: [], withdrawAddr: "",
+      sellProtection: false,
     });
   }
-  return users.get(id)!;
+  const u = users.get(id)!;
+  if (!u.feeMode) u.feeMode = "fast";
+  if (u.mevBuy === undefined) u.mevBuy = false;
+  if (u.mevSell === undefined) u.mevSell = false;
+  if (!u.buySlippage) u.buySlippage = "15";
+  if (!u.sellSlippage) u.sellSlippage = "15";
+  if (!u.buyAmounts) u.buyAmounts = ["0.5", "1", "3", "5", "10"];
+  if (!u.sellAmounts) u.sellAmounts = ["50", "100"];
+  if (u.advancedMode === undefined) u.advancedMode = false;
+  if (!u.positions) u.positions = [];
+  if (!u.withdrawAddr) u.withdrawAddr = "";
+  if (u.sellProtection === undefined) u.sellProtection = false;
+  return u;
 }
 
 const short = (a: string) => a.length > 14 ? a.slice(0, 8) + "..." + a.slice(-6) : a;
@@ -656,20 +708,13 @@ const link = (text: string, url: string): IKB => ({ text, url });
 
 const PM = "HTML" as const;
 
-function mainKB(u: U): TelegramBot.InlineKeyboardMarkup {
+function mainKB(_u: U): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
-      [cb(tr(u, "btn_buy_sell"), "buy"), cb(tr(u, "btn_sniper"), "sniper")],
-      [cb(tr(u, "btn_limits"), "limits"), cb(tr(u, "btn_copy"), "copy")],
-      [cb(tr(u, "btn_profile"), "profile"), cb(tr(u, "btn_wallets"), "wallets"), cb(tr(u, "btn_trades"), "trades")],
-      [cb(tr(u, "btn_referral"), "referral"), cb(tr(u, "btn_cashback"), "cashback")],
-      [cb(tr(u, "btn_transfer"), "transfer"), cb(tr(u, "btn_settings"), "settings")],
-      [link("🔥 Our STBOT... ↗", "https://pump.fun"), link("🚀 Market Mak... ↗", "https://jup.ag")],
-      [cb("🇺🇸", "lang_en"), cb("🇨🇳", "lang_zh"), cb("🇷🇺", "lang_ru"), cb("🇧🇷", "lang_pt"), cb("🇻🇳", "lang_vi")],
-      [cb(tr(u, "btn_backup"), "backup"), cb(tr(u, "btn_security"), "security")],
-      [cb(tr(u, "btn_help"), "help")],
-      [cb(tr(u, "btn_tutorials"), "tutorials")],
-      [cb(tr(u, "close"), "close")],
+      [cb("Buy", "buy"), cb("Sell", "sell")],
+      [cb("Trenches 🆕", "trenches"), cb("Positions", "positions")],
+      [cb("Withdraw", "withdraw"), cb("💰 Rewards", "rewards"), cb("Settings", "settings")],
+      [cb("Help", "help"), cb("↻ Refresh", "refresh_main")],
     ],
   };
 }
@@ -678,24 +723,41 @@ function backMain(u: U, extra: IKB[][] = []): TelegramBot.InlineKeyboardMarkup {
   return { inline_keyboard: [...extra, [cb(tr(u, "back"), "main")], [cb(tr(u, "close"), "close")]] };
 }
 
-function mainText(u: U, price: string): string {
+function mainText(u: U, _price: string): string {
+  const botList = `<a href="https://t.me/${BOT_USERNAME}">Agamemnon</a> | <a href="https://t.me/${BOT_USERNAME}">Nestor</a> | <a href="https://t.me/${BOT_USERNAME}">Odysseus</a> | <a href="https://t.me/${BOT_USERNAME}">Menelaus</a> | <a href="https://t.me/${BOT_USERNAME}">Diomedes</a> | <a href="https://t.me/${BOT_USERNAME}">Paris</a> | <a href="https://t.me/${BOT_USERNAME}">Helenus</a> | <a href="https://t.me/${BOT_USERNAME}">Hector</a>`;
+
   if (u.wallets.length === 0) {
     return (
-      `${BOT_TITLE}\n\n` +
-      `${tr(u, "sol_price")}: <code>$${price}</code>\n\n` +
-      `${tr(u, "create_wallet_hint")}\n` +
-      `<a href="${TG_LINK}">Telegram</a> | <a href="${TW_LINK}">Twitter</a> | <a href="${WEB_LINK}">Website</a>`
+      `Solana · 🔒\n\n` +
+      `No wallet yet.\n` +
+      `<i>(Tap to copy)</i>\n\n` +
+      `Balance: 0 SOL ($0.00)\n` +
+      `—\n\n` +
+      `Click the <b>Refresh</b> button to update your current balance.\n\n` +
+      `<a href="${TG_LINK}">Support</a> | <a href="${TW_LINK}">Terminal</a> | <a href="${WEB_LINK}">X</a>\n\n` +
+      `Use any of these official bots with the same wallets and settings:\n${botList}\n\n` +
+      `<b>Your Referral Link</b>\nhttps://t.me/${BOT_USERNAME}?start=r-user\n\n` +
+      `🚫 <u><b>You are currently in Easy Mode.</b> To access Limit &amp; DCA Orders, Copy Trading and other features, switch to Advanced Mode by clicking on the Settings button.</u>`
     );
   }
   const w = u.wallets[u.activeWallet]!;
-  const pnlSign = parseFloat(u.totalPnl) >= 0 ? "+" : "";
+  const solUsd = parseFloat(_price);
+  const balSol = parseFloat(w.balance);
+  const balUsd = (balSol * solUsd).toFixed(2);
+
   return (
-    `${BOT_TITLE}\n\n` +
-    `${tr(u, "sol_price")}: <code>$${price}</code>\n` +
-    `💳 <code>${w.address}</code>\n` +
-    `${tr(u, "balance")}: <b>${w.balance} SOL</b>\n` +
-    `${tr(u, "pnl")}: <b>${pnlSign}${u.totalPnl} SOL</b>  •  ${tr(u, "trades_label")}: <b>${u.trades}</b>\n` +
-    `<a href="${TG_LINK}">Telegram</a> | <a href="${TW_LINK}">Twitter</a> | <a href="${WEB_LINK}">Website</a>`
+    `Solana · 🔒\n` +
+    `<code>${w.address}</code>\n` +
+    `<i>(Tap to copy)</i>\n\n` +
+    `Balance: <b>${w.balance} SOL</b> ($${balUsd})\n` +
+    `—\n\n` +
+    `Click the <b>Refresh</b> button to update your current balance.\n\n` +
+    `<a href="${TG_LINK}">Support</a> | <a href="${TW_LINK}">Terminal</a> | <a href="${WEB_LINK}">X</a>\n\n` +
+    `Use any of these official bots with the same wallets and settings:\n${botList}\n\n` +
+    `<b>Your Referral Link</b>\nhttps://t.me/${BOT_USERNAME}?start=r-${w.address.slice(0, 10)}\n\n` +
+    (u.advancedMode
+      ? `✅ <u><b>You are in Advanced Mode.</b> All features unlocked.</u>`
+      : `🚫 <u><b>You are currently in Easy Mode.</b> To access Limit &amp; DCA Orders, Copy Trading and other features, switch to Advanced Mode by clicking on the Settings button.</u>`)
   );
 }
 
@@ -865,27 +927,56 @@ function cashbackText(u: U): string {
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
-function settingsText(u: U): string {
+function settingsText(_u: U): string {
   return (
-    `${tr(u, "settings_title")}\n\n` +
-    `${tr(u, "settings_slippage")}: <b>${u.slippage}%</b>\n${tr(u, "settings_fee")}: <b>${u.priorityFee} SOL</b>\n` +
-    `${tr(u, "settings_mev")}: <b>${u.mev ? tr(u, "on") : tr(u, "off")}</b>\n` +
-    `${tr(u, "settings_confirm")}: <b>${u.tradeConfirm ? tr(u, "on") : tr(u, "off")}</b>\n` +
-    `${tr(u, "settings_autobuy")}: <b>${u.autoBuy ? tr(u, "on") : tr(u, "off")}</b>\n` +
-    `${tr(u, "settings_lang")}: <b>${u.language}</b>`
+    `<b>Settings</b>\n\n` +
+    `🛡️ MEV Protection: Enable this setting to send transactions privately and avoid getting frontrun or sandwiched.\n\n` +
+    `<b>Important Note:</b> If you enable MEV Protection your transactions may take longer to get confirmed.\n\n` +
+    `🔖 <b>Fee Discount:</b> You are receiving a 10% discount on trading fees for being a referral of another user.\n\n` +
+    `<b>FAQ:</b>\n\n` +
+    `🚀 <b>Fast/Turbo/Eco/Custom Fee:</b> Set your preferred priority fee &amp; tip to decrease the likelihood of failed transactions.`
   );
 }
+
 function settingsKB(u: U): TelegramBot.InlineKeyboardMarkup {
+  const feeRow: IKB[] = [
+    cb(u.feeMode === "fast" ? "✅ Fast 🐎" : "Fast 🐎", "sfee_fast"),
+    cb(u.feeMode === "turbo" ? "✅ Turbo 🚀" : "Turbo 🚀", "sfee_turbo"),
+    cb(u.feeMode === "eco" ? "✅ Eco 🌿" : "Eco 🌿", "sfee_eco"),
+  ];
   return {
     inline_keyboard: [
-      [cb(tr(u, "btn_slippage"), "sslip"), cb(tr(u, "btn_fee"), "sfee")],
+      [cb("← Back", "main"), cb(`${u.language.split(" ")[0]} ${u.language.split(" ").slice(1).join(" ")} →`, "slang")],
+      feeRow,
+      [cb("Custom Fee", "sfee_custom")],
       [
-        cb(`${tr(u, "mev_btn")}${u.mev ? tr(u, "on") : tr(u, "off")}`, "smev"),
-        cb(`${tr(u, "confirm_btn")}${u.tradeConfirm ? tr(u, "on") : tr(u, "off")}`, "sconfirm"),
+        cb(`${u.mevBuy ? "✅" : "🔴"} MEV Protect (Buy)`, "smev_buy"),
+        cb(`${u.mevSell ? "✅" : "🔴"} MEV Protect (Sell)`, "smev_sell"),
       ],
-      [cb(`${tr(u, "autobuy_btn")}${u.autoBuy ? tr(u, "on") : tr(u, "off")}`, "sautobuy")],
-      [cb(tr(u, "btn_language"), "slang")],
-      [cb(tr(u, "back"), "main"), cb(tr(u, "close"), "close")],
+      [cb(`${u.autoBuy ? "✅" : "🔴"} Auto Buy`, "sautobuy")],
+      [cb("— Buy Amounts —", "noop")],
+      [
+        cb(`${u.buyAmounts[0]} SOL ✏️`, "sbuyamt_0"),
+        cb(`${u.buyAmounts[1]} SOL ✏️`, "sbuyamt_1"),
+        cb(`${u.buyAmounts[2]} SOL ✏️`, "sbuyamt_2"),
+      ],
+      [
+        cb(`${u.buyAmounts[3]} SOL ✏️`, "sbuyamt_3"),
+        cb(`${u.buyAmounts[4]} SOL ✏️`, "sbuyamt_4"),
+      ],
+      [cb(`Buy Slippage: ${u.buySlippage}% ✏️`, "sbuyslip")],
+      [cb("— Sell Amounts —", "noop")],
+      [
+        cb(`${u.sellAmounts[0]}% ✏️`, "ssellamt_0"),
+        cb(`${u.sellAmounts[1]}% ✏️`, "ssellamt_1"),
+      ],
+      [cb(`Sell Slippage: ${u.sellSlippage}% ✏️`, "ssellslip")],
+      [cb("Show/Hide Tokens", "showtokens"), cb("Wallets", "wallets")],
+      [
+        cb("🔒 Account Security", "security"),
+        cb(`${u.sellProtection ? "✅" : "🔴"} Sell Protection`, "ssellprotect"),
+      ],
+      [cb(u.advancedMode ? "← Easy Mode" : "Advanced Mode →", "sadvanced")],
     ],
   };
 }
@@ -964,6 +1055,145 @@ const TUTORIALS: Record<string, string> = {
     `4. Import existing wallet via private key\n` +
     `5. Tap any wallet to set it as active`,
 };
+
+// ── TRENCHES (NEW PAIRS) ──────────────────────────────────────────────────────
+function trenchesText(): string {
+  const tokens = [
+    { sym: "$COMPUTE", name: "REALLY GOOD NARRA READ TWEET", age: "11s", prog: 0, th: "—", dev: "—", h: 1, vol: 0, mc: 2420 },
+    { sym: "$READ", name: "IBRL OG 4 MONTHS", age: "9s", prog: 0, th: "—", dev: "—", h: 1, vol: 0, mc: 2420 },
+    { sym: "$ALPHA", name: "ALPHA SIGNAL TOKEN", age: "23s", prog: 5, th: "—", dev: "—", h: 2, vol: 150, mc: 8900 },
+  ];
+  let txt = `🌱 <b>New Pairs</b> | Recently launched tokens.\n\n`;
+  for (const t of tokens) {
+    const bar = "■".repeat(Math.floor(t.prog / 5)) + "□".repeat(20 - Math.floor(t.prog / 5));
+    txt +=
+      `<b>${t.sym}</b> | ${t.name} — <i>${t.age} ago</i>\n` +
+      `Progress: ${t.prog}% | X\n${bar}\n` +
+      `TH: ${t.th} | DEV: ${t.dev} | H: ${t.h}\n` +
+      `Vol: $${t.vol} | MC: $${(t.mc / 1000).toFixed(2)}K\n` +
+      `<a href="https://jup.ag">Quick Buy</a> | <a href="https://dexscreener.com">View Chart</a>\n\n`;
+  }
+  return txt.trimEnd();
+}
+
+function trenchesKB(): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [cb("✅ 🌱", "trenches_filter_new"), cb("🔥", "trenches_filter_hot"), cb("🚀", "trenches_filter_rocket")],
+      [cb("Migrating", "trenches_migrating")],
+      [cb("← Back", "main"), cb("↻ Refresh", "trenches")],
+    ],
+  };
+}
+
+// ── POSITIONS ─────────────────────────────────────────────────────────────────
+function positionsText(u: U): string {
+  if (u.positions.length === 0) {
+    return `📊 <b>Positions</b>\n\n<i>No open positions.\n\nBuy a token to see it tracked here.</i>`;
+  }
+  let txt = `📊 <b>Positions</b>\n\n`;
+  for (const p of u.positions) {
+    const pnl = parseFloat(p.pnl);
+    txt +=
+      `${pnl >= 0 ? "🟢" : "🔴"} <b>${p.symbol}</b> — W${u.wallets.findIndex(w => w.address === p.wallet) + 1}\n` +
+      `<code>${p.token.slice(0, 16)}...</code>\n` +
+      `Avg: $${p.avgPrice} | Now: $${p.currentPrice}\n` +
+      `P&amp;L: <b>${pnl >= 0 ? "+" : ""}${p.pnl}%</b> | Amount: <b>${p.amount}</b>\n\n`;
+  }
+  return txt.trimEnd();
+}
+
+function positionsKB(_u: U): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [cb("← Back", "main"), cb("↻ Refresh", "positions")],
+    ],
+  };
+}
+
+// ── WITHDRAW ──────────────────────────────────────────────────────────────────
+function withdrawNetworkKB(): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [cb("← Back", "main"), cb("Solana", "withdraw_sol"), cb("Ethereum", "withdraw_eth")],
+    ],
+  };
+}
+
+function withdrawSolText(u: U): string {
+  const w = u.wallets[u.activeWallet];
+  const bal = w ? w.balance : "0.0000";
+  return (
+    `Withdraw $SOL — (Solana) 🔒\n\n` +
+    `Balance: <b>${bal} SOL</b>\n\n` +
+    `<i>Select amount to withdraw:</i>`
+  );
+}
+
+function withdrawSolKB(): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [cb("← Back", "withdraw"), cb("↻ Refresh", "withdraw_sol")],
+      [cb("50 %", "wd_sol_50"), cb("✅ 100 %", "wd_sol_100"), cb("X % ✏️", "wd_sol_custom")],
+      [cb("X SOL ✏️", "wd_sol_amt")],
+      [cb("Set Withdrawal Address", "wd_set_addr")],
+    ],
+  };
+}
+
+function withdrawEthText(): string {
+  return (
+    `Withdraw $ETH — (Ethereum) 🔒\n\n` +
+    `Balance: <b>0.0 ETH</b>\n\n` +
+    `<i>Select amount to withdraw:</i>`
+  );
+}
+
+function withdrawEthKB(): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [cb("← Back", "withdraw"), cb("↻ Refresh", "withdraw_eth")],
+      [cb("50 %", "wd_eth_50"), cb("✅ 100 %", "wd_eth_100"), cb("X % ✏️", "wd_eth_custom")],
+      [cb("X ETH ✏️", "wd_eth_amt")],
+      [cb("Set Withdrawal Address", "wd_set_addr")],
+    ],
+  };
+}
+
+// ── REWARDS ───────────────────────────────────────────────────────────────────
+function rewardsText(u: U, uid: number): string {
+  const refLink = `https://t.me/${BOT_USERNAME}?start=r-${uid}`;
+  const directEarned = (u.referrals * 0.001).toFixed(4);
+  const totalPaid = (parseFloat(u.cashback) + u.referrals * 0.001).toFixed(4);
+  return (
+    `<b>Cashback Rewards</b>\n\n` +
+    `Cashback and Referral Rewards are paid out <u>every 12 hours</u> and airdropped directly to your Rewards Wallet. To be eligible, you must have at least 0.005 SOL in unpaid rewards.\n\n` +
+    `All users now enjoy a <b>10% boost</b> to referral rewards and <b>20% cashback</b> on trading fees.\n\n` +
+    `<b>Referral Rewards</b>\n` +
+    `• Users referred: ${u.referrals}\n` +
+    `• Direct: ${u.referrals}, Indirect: 0\n` +
+    `• Earned rewards: ${directEarned} SOL ($0.00)\n\n` +
+    `<b>Cashback Rewards</b>\n` +
+    `• Earned rewards: ${u.cashback} SOL ($0.00)\n\n` +
+    `<b>Total Rewards</b>\n` +
+    `• Total paid: ${totalPaid} SOL ($0.00)\n` +
+    `• Total unpaid: 0 SOL ($0.00)\n\n` +
+    `<b>Your Referral Link</b>\n${refLink}\n<i>Your friends save 10% with your link.</i>\n\n` +
+    `Last updated at ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC\n(every 5 min)`
+  );
+}
+
+function rewardsKB(u: U): TelegramBot.InlineKeyboardMarkup {
+  const w = u.wallets[u.activeWallet];
+  const rewardsAddr = w ? `${w.address.slice(0, 4)}...${w.address.slice(-4)}` : "No wallet";
+  return {
+    inline_keyboard: [
+      [cb("Close", "main")],
+      [cb(`Rewards Wallet: ${rewardsAddr}`, "noop")],
+      [cb("↻ Update Your Referral Link", "ref_update")],
+    ],
+  };
+}
 
 let botInstance: TelegramBot | null = null;
 
@@ -1303,6 +1533,46 @@ export async function startTelegramBot(): Promise<void> {
     if (data === "close") { if (msgId) await bot.deleteMessage(chatId, msgId).catch(() => {}); return; }
     if (data === "main") { await showMain(chatId, name, msgId); return; }
 
+    if (data === "noop") return;
+
+    if (data === "refresh_main") { await showMain(chatId, name, msgId); return; }
+
+    // ── TRENCHES ─────────────────────────────────────────────────────────────
+    if (data === "trenches" || data === "trenches_filter_new" || data === "trenches_filter_hot" || data === "trenches_filter_rocket" || data === "trenches_migrating") {
+      return upd(trenchesText(), trenchesKB());
+    }
+
+    // ── POSITIONS ─────────────────────────────────────────────────────────────
+    if (data === "positions") { return upd(positionsText(u), positionsKB(u)); }
+
+    // ── WITHDRAW ─────────────────────────────────────────────────────────────
+    if (data === "withdraw") {
+      return upd(`Select the network to withdraw from`, withdrawNetworkKB());
+    }
+    if (data === "withdraw_sol") { return upd(withdrawSolText(u), withdrawSolKB()); }
+    if (data === "withdraw_eth") { return upd(withdrawEthText(), withdrawEthKB()); }
+    if (data === "wd_set_addr") {
+      u.step = "wd_addr";
+      return upd(`Enter your destination wallet for referral rewards`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+    }
+    if (data === "wd_sol_50" || data === "wd_sol_100") {
+      const w = u.wallets[u.activeWallet];
+      if (!w) return upd(`⚠️ No wallet found.`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+      const pct = data === "wd_sol_50" ? 0.5 : 1.0;
+      const amt = (parseFloat(w.balance) * pct - 0.001).toFixed(4);
+      if (parseFloat(amt) <= 0) return upd(`⚠️ Insufficient balance.`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+      return upd(`💸 Withdrawal of <b>${amt} SOL</b> initiated.\n\n<i>Enter your destination address:</i>`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+    }
+    if (data === "wd_sol_custom" || data === "wd_sol_amt") {
+      u.step = "wd_addr";
+      return upd(`Enter your destination wallet address:`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+    }
+
+    // ── REWARDS ───────────────────────────────────────────────────────────────
+    if (data === "rewards" || data === "ref_update") {
+      return upd(rewardsText(u, chatId), rewardsKB(u));
+    }
+
     // ── LANGUAGE (flag buttons on main menu or in settings) ──────────────────
     const LANGS: Record<string, string> = {
       lang_en: "🇺🇸 English", lang_zh: "🇨🇳 中文",
@@ -1310,7 +1580,6 @@ export async function startTelegramBot(): Promise<void> {
     };
     if (data in LANGS) {
       u.language = LANGS[data]!;
-      // Refresh main menu in new language immediately
       await showMain(chatId, name, msgId);
       return;
     }
@@ -1496,16 +1765,37 @@ export async function startTelegramBot(): Promise<void> {
     if (data === "settings") return upd(settingsText(u), settingsKB(u));
     if (data === "sslip") { u.step = "set_slippage"; return upd(`${tr(u, "slippage_prompt")} <b>${u.slippage}%</b>\n${tr(u, "slippage_enter")}`, { inline_keyboard: [[cb(tr(u, "back"), "settings")]] }); }
     if (data === "sfee") { u.step = "set_fee"; return upd(`${tr(u, "fee_prompt")} <b>${u.priorityFee} ${tr(u, "fee_unit")}</b>\n${tr(u, "fee_enter")}`, { inline_keyboard: [[cb(tr(u, "back"), "settings")]] }); }
+    if (data === "sfee_fast") { u.feeMode = "fast"; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "sfee_turbo") { u.feeMode = "turbo"; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "sfee_eco") { u.feeMode = "eco"; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "sfee_custom") { u.feeMode = "custom"; u.step = "set_fee"; return upd(`Custom Fee\n\nEnter your desired priority fee in SOL (e.g. 0.005):`, { inline_keyboard: [[cb("← Back", "settings")]] }); }
     if (data === "smev") { u.mev = !u.mev; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "smev_buy") { u.mevBuy = !u.mevBuy; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "smev_sell") { u.mevSell = !u.mevSell; return upd(settingsText(u), settingsKB(u)); }
     if (data === "sconfirm") { u.tradeConfirm = !u.tradeConfirm; return upd(settingsText(u), settingsKB(u)); }
     if (data === "sautobuy") { u.autoBuy = !u.autoBuy; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "ssellprotect") { u.sellProtection = !u.sellProtection; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "sadvanced") { u.advancedMode = !u.advancedMode; return upd(settingsText(u), settingsKB(u)); }
+    if (data === "showtokens") return upd(`Show/Hide Tokens\n\n<i>This feature lets you hide tokens with small balances from your wallet view.</i>`, { inline_keyboard: [[cb("← Back", "settings")]] });
+    if (data === "sbuyslip") { u.step = "set_buyslip"; return upd(`Buy Slippage\n\nCurrent: <b>${u.buySlippage}%</b>\n\nEnter new buy slippage %:`, { inline_keyboard: [[cb("← Back", "settings")]] }); }
+    if (data === "ssellslip") { u.step = "set_sellslip"; return upd(`Sell Slippage\n\nCurrent: <b>${u.sellSlippage}%</b>\n\nEnter new sell slippage %:`, { inline_keyboard: [[cb("← Back", "settings")]] }); }
+    if (data.startsWith("sbuyamt_")) {
+      const idx = parseInt(data.replace("sbuyamt_", ""));
+      u.step = `set_buyamt_${idx}`;
+      return upd(`Buy Amount ${idx + 1}\n\nCurrent: <b>${u.buyAmounts[idx]} SOL</b>\n\nEnter new SOL amount:`, { inline_keyboard: [[cb("← Back", "settings")]] });
+    }
+    if (data.startsWith("ssellamt_")) {
+      const idx = parseInt(data.replace("ssellamt_", ""));
+      u.step = `set_sellamt_${idx}`;
+      return upd(`Sell Amount ${idx + 1}\n\nCurrent: <b>${u.sellAmounts[idx]}%</b>\n\nEnter new percentage:`, { inline_keyboard: [[cb("← Back", "settings")]] });
+    }
     if (data === "slang") {
       return upd(tr(u, "lang_select"), {
         inline_keyboard: [
           [cb("🇺🇸 English", "lang_en"), cb("🇨🇳 中文", "lang_zh")],
           [cb("🇷🇺 Русский", "lang_ru"), cb("🇧🇷 Português", "lang_pt")],
           [cb("🇻🇳 Tiếng Việt", "lang_vi")],
-          [cb(tr(u, "back"), "settings")],
+          [cb("← Back", "settings")],
         ],
       });
     }
@@ -1847,6 +2137,21 @@ export async function startTelegramBot(): Promise<void> {
 
     if (u.step === "set_slippage") { u.slippage = t.replace("%", ""); u.step = "main"; await upd(settingsText(u), settingsKB(u)); return; }
     if (u.step === "set_fee") { u.priorityFee = t; u.step = "main"; await upd(settingsText(u), settingsKB(u)); return; }
+    if (u.step === "set_buyslip") { u.buySlippage = t.replace("%", ""); u.step = "main"; await upd(settingsText(u), settingsKB(u)); return; }
+    if (u.step === "set_sellslip") { u.sellSlippage = t.replace("%", ""); u.step = "main"; await upd(settingsText(u), settingsKB(u)); return; }
+    if (u.step?.startsWith("set_buyamt_")) {
+      const idx = parseInt(u.step.replace("set_buyamt_", ""));
+      const v = parseFloat(t);
+      if (!isNaN(v) && v > 0 && idx >= 0 && idx < 5) { u.buyAmounts[idx] = t; }
+      u.step = "main"; await upd(settingsText(u), settingsKB(u)); return;
+    }
+    if (u.step?.startsWith("set_sellamt_")) {
+      const idx = parseInt(u.step.replace("set_sellamt_", ""));
+      const v = parseFloat(t);
+      if (!isNaN(v) && v > 0 && idx >= 0 && idx < 2) { u.sellAmounts[idx] = t; }
+      u.step = "main"; await upd(settingsText(u), settingsKB(u)); return;
+    }
+    if (u.step === "wd_addr") { u.withdrawAddr = t; u.step = "main"; await upd(`✅ Withdrawal address set:\n<code>${t}</code>`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] }); return; }
     if (u.step === "set_pin") {
       if (!/^\d{4}$/.test(t)) { await note(bot, chatId, `⚠️ PIN must be exactly 4 digits:`); return; }
       u.pin = t; u.step = "main"; await upd(secText(u), secKB(u)); return;

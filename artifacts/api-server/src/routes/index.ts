@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import { getTelegramBot } from "../telegram-bot";
+import { getTelegramBot, getBotStats } from "../telegram-bot";
 
 const router: IRouter = Router();
 
@@ -15,6 +15,14 @@ router.post("/telegram-webhook", async (req, res) => {
     res.sendStatus(200);
   } catch (e) {
     res.sendStatus(200);
+  }
+});
+
+router.get("/stats", (_req, res) => {
+  try {
+    res.json(getBotStats());
+  } catch (e) {
+    res.status(500).json({ error: "Failed to get stats" });
   }
 });
 

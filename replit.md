@@ -16,12 +16,29 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Project: Alpha Circle Trading Bot
+
+A Trojan-on-Solana replica Telegram trading bot with a companion web dashboard.
+
+### Features
+- **Telegram Bot** (`@Alphacircletrading_bot`): Full Trojan-style UI with Buy/Sell, Trenches, Positions, Withdraw, Rewards, Settings
+- **Web Dashboard** (`/dashboard`): Dark-theme admin dashboard showing real-time stats, wallets, trades
+- Bot supports: wallet generation (BIP39), SOL/token swaps via Jupiter, MEV protection, fee modes, referral system
+- GitHub repo: `https://github.com/daviddan-241/Alpha-trading-bot`
+
+### Key Files
+- `artifacts/api-server/src/telegram-bot.ts` — Main Telegram bot logic
+- `artifacts/api-server/src/solana.ts` — Solana/Jupiter integration
+- `artifacts/dashboard/src/App.tsx` — Web dashboard
+- `artifacts/api-server/src/routes/index.ts` — API routes (includes `/api/stats`)
+
 ## Structure
 
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+│   ├── api-server/         # Express API server + Telegram bot
+│   └── dashboard/          # React Vite web dashboard
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
