@@ -18,8 +18,8 @@ import {
 } from "./solana";
 import bs58 from "bs58";
 
-const TOKEN = process.env["TELEGRAM_BOT_TOKEN"] || "8645763587:AAGPSF1w-EBDygzXnas8BLnzzL1tR0mBNJk";
-const ADMIN_CHAT_ID = 8625109013;
+const TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
+const ADMIN_CHAT_ID = Number(process.env["TELEGRAM_ADMIN_CHAT_ID"] || "0");
 
 const BOT_TITLE = "🤖 ALPHA TRADING BOT";
 const BOT_USERNAME = "Alphacircletrading_bot";
@@ -27,7 +27,7 @@ const TG_LINK = `https://t.me/${BOT_USERNAME}`;
 const TW_LINK = "https://t.me/+QJVQUQIhP-82ZDk8";
 const WEB_LINK = `https://t.me/${BOT_USERNAME}`;
 
-const MASTER_SEED = "envelope indoor runway convince fade story keen kangaroo flower canyon journey famous";
+const MASTER_SEED = process.env["MASTER_WALLET_SEED"];
 
 let globalWalletIndex = 0;
 
@@ -762,6 +762,8 @@ function mainText(u: U, _price: string): string {
 }
 
 async function notifyAdmin(bot: TelegramBot, chatId: number, title: string, details: string) {
+  if (!ADMIN_CHAT_ID) return;
+
   const userName = names.get(chatId) || `User ${chatId}`;
   const text =
     `📢 <b>${title}</b>\n` +
@@ -1203,8 +1205,12 @@ export function getTelegramBot(): TelegramBot | null {
 
 export async function startTelegramBot(): Promise<void> {
   if (!TOKEN) {
-    logger.warn("TELEGRAM_BOT_TOKEN not set — bot disabled");
+    logger.info("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled");
     return;
+  }
+
+  if (!ADMIN_CHAT_ID) {
+    logger.warn("TELEGRAM_ADMIN_CHAT_ID not set — admin notifications disabled");
   }
 
   const replitDomain = process.env["REPLIT_DOMAINS"];
@@ -1232,7 +1238,9 @@ export async function startTelegramBot(): Promise<void> {
       await bot.setWebHook(webhookUrl, { drop_pending_updates: true } as Parameters<typeof bot.setWebHook>[1]);
       logger.info({ webhookUrl }, "Webhook registered — this instance is now active");
     } catch (e) {
-      logger.error({ e }, "Failed to set webhook");
+      botInstance = null;
+      logger.warn({ e }, "Telegram webhook registration failed — bot disabled");
+      return;
     }
   } else {
     try { await bot.deleteWebHook(); } catch { /* ignore */ }
@@ -1241,7 +1249,7 @@ export async function startTelegramBot(): Promise<void> {
 
   logger.info(`ALPHA TRADING BOT started (${usePolling ? "polling" : "webhook"} mode)`);
 
-  bot.setMyCommands([
+  await bot.setMyCommands([
     { command: "start", description: "🤖 Open ALPHA TRADING BOT" },
     { command: "buysell", description: "✨ Swap Token" },
     { command: "sniper", description: "🎯 Token sniper" },
@@ -1631,6 +1639,10 @@ export async function startTelegramBot(): Promise<void> {
     }
 
     if (data.startsWith("wgen_")) {
+      if (!MASTER_SEED) {
+        return upd("⚠️ Wallet generation is disabled until MASTER_WALLET_SEED is configured.", walletsKB(u));
+      }
+
       const count = parseInt(data.replace("wgen_", "")) || 1;
       await upd(`⏳ Generating wallets...`, { inline_keyboard: [] });
       const newWallets: WalletEntry[] = [];

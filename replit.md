@@ -23,6 +23,7 @@ A Trojan-on-Solana replica Telegram trading bot with a companion web dashboard.
 ### Features
 - **Telegram Bot** (`@Alphacircletrading_bot`): Full Trojan-style UI with Buy/Sell, Trenches, Positions, Withdraw, Rewards, Settings
 - **Web Dashboard** (`/dashboard`): Dark-theme admin dashboard showing real-time stats, wallets, trades
+- The Replit development workflow serves the built dashboard from the API server at `/dashboard/`, with `/` redirecting there, so the project runs on a single Replit port.
 - Bot supports: wallet generation (BIP39), SOL/token swaps via Jupiter, MEV protection, fee modes, referral system
 - GitHub repo: `https://github.com/daviddan-241/Alpha-trading-bot`
 
