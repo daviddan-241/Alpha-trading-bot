@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import { getTelegramBot, getBotStats } from "../telegram-bot";
+import { getTelegramBot, getBotStats, getTrenchesStats } from "../telegram-bot";
 
 const router: IRouter = Router();
 
@@ -23,6 +23,14 @@ router.get("/stats", (_req, res) => {
     res.json(getBotStats());
   } catch (e) {
     res.status(500).json({ error: "Failed to get stats" });
+  }
+});
+
+router.get("/trenches", async (_req, res) => {
+  try {
+    res.json(await getTrenchesStats());
+  } catch (e) {
+    res.status(500).json({ error: "Failed to get trenches" });
   }
 });
 

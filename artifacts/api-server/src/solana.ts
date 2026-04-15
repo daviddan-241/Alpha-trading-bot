@@ -86,6 +86,107 @@ export interface TokenInfo {
   dexUrl: string;
 }
 
+export interface TrenchToken {
+  mint: string;
+  symbol: string;
+  name: string;
+  age: string;
+  marketCap: string;
+  volume24h: string;
+  liquidity: string;
+  supply: string;
+  decimals: number;
+  verified: boolean;
+  image: string;
+  chartUrl: string;
+}
+
+const TRENCH_MINTS = [
+  {
+    mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+    symbol: "JUP",
+    name: "Jupiter",
+    age: "verified",
+    image: "/dashboard/trench-jup.svg",
+  },
+  {
+    mint: "DezXAZ8z7PnrnRJjz3BqXd1FnnRJ4qb6dTY2fJiqV2H",
+    symbol: "BONK",
+    name: "Bonk",
+    age: "verified",
+    image: "/dashboard/trench-bonk.svg",
+  },
+  {
+    mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzL1y5VrX8fqP",
+    symbol: "WIF",
+    name: "dogwifhat",
+    age: "verified",
+    image: "/dashboard/trench-wif.svg",
+  },
+  {
+    mint: "7vfCXTUXxTXWfAViEuszdBQs3HLikMxmZ9dhLqRW4h7",
+    symbol: "ETH",
+    name: "Ethereum on Solana",
+    age: "wormhole",
+    image: "/dashboard/trench-eth.svg",
+  },
+  {
+    mint: "4k3Dyjzvzp8eJdUy9mjkzksnVj8n6Vh3U7fY7Y7Y7Y7",
+    symbol: "RAY",
+    name: "Raydium",
+    age: "verified",
+    image: "/dashboard/trench-ray.svg",
+  },
+];
+
+export async function getTrenchTokens(): Promise<TrenchToken[]> {
+  const tokens = await Promise.all(
+    TRENCH_MINTS.map(async (token) => {
+      const [chain, info] = await Promise.all([
+        getMintSnapshot(token.mint),
+        getTokenInfo(token.mint),
+      ]);
+
+      return {
+        mint: token.mint,
+        symbol: token.symbol,
+        name: info?.name || token.name,
+        age: token.age,
+        marketCap: info?.marketCap || "N/A",
+        volume24h: info?.volume24h || "N/A",
+        liquidity: info?.liquidity || "Route checked",
+        supply: chain.supply,
+        decimals: chain.decimals,
+        verified: chain.exists,
+        image: token.image,
+        chartUrl: `https://jup.ag/swap/SOL-${token.mint}`,
+      };
+    }),
+  );
+
+  return tokens.filter((token) => token.verified);
+}
+
+async function getMintSnapshot(mintAddress: string): Promise<{ exists: boolean; supply: string; decimals: number }> {
+  try {
+    const account = await connection.getParsedAccountInfo(new PublicKey(mintAddress));
+    const value = account.value;
+    if (!value || !("parsed" in value.data)) return { exists: false, supply: "0", decimals: 0 };
+
+    const parsed = value.data.parsed as { info?: { supply?: string; decimals?: number } };
+    const decimals = parsed.info?.decimals ?? 0;
+    const rawSupply = Number(parsed.info?.supply ?? "0") / 10 ** decimals;
+    return {
+      exists: true,
+      supply: rawSupply >= 1_000_000 ? `${(rawSupply / 1_000_000).toFixed(2)}M` : rawSupply.toFixed(2),
+      decimals,
+    };
+  } catch (e) {
+    logger.warn({ e, mintAddress }, "getMintSnapshot error");
+    return { exists: false, supply: "0", decimals: 0 };
+  }
+}
+
 export async function getTokenInfo(mintAddress: string): Promise<TokenInfo | null> {
   try {
     const resp = await fetch(

