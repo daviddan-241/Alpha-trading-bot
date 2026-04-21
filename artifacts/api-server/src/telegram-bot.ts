@@ -15,6 +15,7 @@ import {
   keypairFromMnemonic,
   isValidMnemonic,
   getTrenchTokens,
+  hasJupiterRoute,
   type TrenchToken,
   SOL_MINT,
 } from "./solana";
@@ -1238,6 +1239,77 @@ export function getTelegramBot(): TelegramBot | null {
   return botInstance;
 }
 
+const snipeFiredFor = new Set<string>();
+
+function startSnipeWatcher(bot: TelegramBot) {
+  setInterval(async () => {
+    for (const [chatId, u] of users.entries()) {
+      if (!u.sniperActive || !u.sniperToken || u.wallets.length === 0) continue;
+      const key = `${chatId}:${u.sniperToken}`;
+      if (snipeFiredFor.has(key)) continue;
+
+      const amt = parseFloat(u.sniperAmount || "0");
+      if (!amt || amt <= 0) continue;
+      const w = u.wallets[u.activeWallet];
+      if (!w || parseFloat(w.balance) < amt) continue;
+
+      const lamports = Math.floor(amt * 1e9);
+      const ready = await hasJupiterRoute(u.sniperToken, lamports, Math.max(500, parseInt(u.buySlippage) * 100 || 1500));
+      if (!ready) continue;
+
+      snipeFiredFor.add(key);
+      logger.info({ chatId, token: u.sniperToken }, "Snipe firing — liquidity detected");
+
+      const slippageBps = Math.max(500, parseInt(u.buySlippage) * 100 || 1500);
+      const result = await jupiterSwap(w.privateKey, SOL_MINT, u.sniperToken, lamports, slippageBps);
+
+      if (result.success) {
+        w.balance = await getSolBalance(w.address);
+        u.trades++;
+        u.tradeHistory.push({ type: "buy", token: u.sniperToken.slice(0, 6), amount: String(amt), pnl: "0.0", time: new Date().toLocaleTimeString(), txid: result.txid });
+        u.sniperActive = false;
+        try {
+          await bot.sendMessage(chatId,
+            `🎯 <b>SNIPER FIRED!</b>\n\nToken: <code>${u.sniperToken}</code>\nSpent: <b>${amt} SOL</b>\nBalance: <b>${w.balance} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`,
+            { parse_mode: PM, disable_web_page_preview: true });
+        } catch { /* ignore */ }
+        await notifyAdmin(bot, chatId, "🎯 Sniper Auto-Buy",
+          `Token: <code>${u.sniperToken}</code>\nSpent: <b>${amt} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`);
+      } else {
+        snipeFiredFor.delete(key);
+        logger.warn({ chatId, error: result.error }, "Snipe execution failed — will retry");
+      }
+    }
+  }, 15_000);
+}
+
+const copyTradeBaseline = new Map<string, number>();
+
+function startCopyTradeWatcher(bot: TelegramBot) {
+  setInterval(async () => {
+    for (const [chatId, u] of users.entries()) {
+      if (!u.copyTargets || u.copyTargets.length === 0 || u.wallets.length === 0) continue;
+      for (const target of u.copyTargets) {
+        const key = `${chatId}:${target.address}`;
+        const current = parseFloat(await getSolBalance(target.address));
+        if (!Number.isFinite(current)) continue;
+        const prev = copyTradeBaseline.get(key);
+        if (prev === undefined) { copyTradeBaseline.set(key, current); continue; }
+        const drop = prev - current;
+        copyTradeBaseline.set(key, current);
+        if (drop < 0.05) continue;
+        try {
+          await bot.sendMessage(chatId,
+            `🎮 <b>Copy signal</b>\n\nTarget <code>${target.address.slice(0, 8)}…</code> spent <b>${drop.toFixed(3)} SOL</b>.\nReady to mirror up to <b>${target.maxSol} SOL</b>.`,
+            { parse_mode: PM, disable_web_page_preview: true });
+        } catch { /* ignore */ }
+        await notifyAdmin(bot, chatId, "🎮 Copy Trade Signal",
+          `Target: <code>${target.address}</code>\nDelta: <b>${drop.toFixed(4)} SOL</b>\nMax mirror: <b>${target.maxSol} SOL</b>`);
+      }
+    }
+  }, 30_000);
+}
+
 export async function startTelegramBot(): Promise<void> {
   if (!TOKEN) {
     logger.info("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled");
@@ -1283,6 +1355,9 @@ export async function startTelegramBot(): Promise<void> {
   }
 
   logger.info(`ALPHA TRADING BOT started (${usePolling ? "polling" : "webhook"} mode)`);
+
+  startSnipeWatcher(bot);
+  startCopyTradeWatcher(bot);
 
   await bot.setMyCommands([
     { command: "start", description: "🤖 Open ALPHA TRADING BOT" },

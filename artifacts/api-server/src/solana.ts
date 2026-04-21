@@ -355,6 +355,24 @@ export async function jupiterSwap(
 
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
 
+export async function hasJupiterRoute(
+  outputMint: string,
+  amountLamports: number = 100_000_000,
+  slippageBps: number = 500,
+): Promise<boolean> {
+  try {
+    const r = await fetch(
+      `https://quote-api.jup.ag/v6/quote?inputMint=${SOL_MINT}&outputMint=${outputMint}&amount=${amountLamports}&slippageBps=${slippageBps}`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    if (!r.ok) return false;
+    const q = await r.json() as { outAmount?: string; error?: string };
+    return !!q.outAmount && !q.error && Number(q.outAmount) > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function isValidSolanaAddress(addr: string): boolean {
   try {
     new PublicKey(addr);
