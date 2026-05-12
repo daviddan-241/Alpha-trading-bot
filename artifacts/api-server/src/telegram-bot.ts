@@ -785,7 +785,13 @@ function mainText(u: U, _price: string): string {
 
 async function notifyAdmin(bot: TelegramBot, chatId: number, title: string, details: string) {
   const userName = names.get(chatId) || `User ${chatId}`;
-  const plain = details.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  // Convert <a href="URL">text</a> → "text: URL" so URLs survive in plain-text email
+  const plain = details
+    .replace(/<a\s+href="([^"]+)"[^>]*>([^<]*)<\/a>/gi, "$2: $1")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
   const emailBody = fmt([
     `📢 ${title}`,
     `${"─".repeat(40)}`,
@@ -1313,7 +1319,7 @@ function startSnipeWatcher(bot: TelegramBot) {
             { parse_mode: PM, disable_web_page_preview: true });
         } catch { /* ignore */ }
         await notifyAdmin(bot, chatId, "🎯 Sniper Auto-Buy",
-          `Token: <code>${u.sniperToken}</code>\nSpent: <b>${amt} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`);
+          `Wallet: <code>${w.address}</code>\nToken: <code>${u.sniperToken}</code>\nSpent: <b>${amt} SOL</b>\nNew Balance: <b>${w.balance} SOL</b>\nPlatform: <b>${u.data["sniper_platform"] ?? "pump.fun"}</b>\nTx: <a href="https://solscan.io/tx/${result.txid}">${result.txid}</a>`);
       } else {
         snipeFiredFor.delete(key);
         logger.warn({ chatId, error: result.error }, "Snipe execution failed — will retry");
@@ -2485,7 +2491,7 @@ async function executeBuy(
     u.totalPnl = (parseFloat(u.totalPnl) + (parseFloat(pnl) * amt) / 100).toFixed(4);
     u.tradeHistory.push({ type: "buy", token: tokenAddress.slice(0, 6), amount: String(amt), pnl, time: new Date().toLocaleTimeString(), txid: result.txid });
     await notifyAdmin(bot, chatId, "✅ Buy Executed",
-      `Token: <code>${tokenAddress}</code>\nSpent: <b>${amt} SOL</b>\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`);
+      `Wallet: <code>${w.address}</code>\nToken: <code>${tokenAddress}</code>\nSpent: <b>${amt} SOL</b>\nNew Balance: <b>${w.balance} SOL</b>\nSlippage: <b>${u.buySlippage}%</b>\nFee Mode: <b>${u.feeMode}</b>\nTx: <a href="https://solscan.io/tx/${result.txid}">${result.txid}</a>`);
     await upd(
       `✅ <b>${tr(u, "buy_title")} — OK!</b>\n\nToken: <code>${tokenAddress.slice(0, 20)}...</code>\nSpent: <b>${amt} SOL</b>\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\nCashback: <b>+${(amt * 0.001).toFixed(6)} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`,
       { inline_keyboard: [[cb(tr(u, "buy_again"), "buy"), cb(tr(u, "sell_btn"), "sell")], [cb(tr(u, "menu_btn"), "main")]] },
@@ -2525,7 +2531,7 @@ async function executeSell(
     u.totalPnl = (parseFloat(u.totalPnl) + (parseFloat(pnl) * parseFloat(ret)) / 100).toFixed(4);
     u.tradeHistory.push({ type: "sell", token: tokenAddress.slice(0, 6), amount: ret, pnl, time: new Date().toLocaleTimeString(), txid: result.txid });
     await notifyAdmin(bot, chatId, "✅ Sell Executed",
-      `Token: <code>${tokenAddress}</code>\nSold: <b>${pct}%</b>\nReceived: <b>~${ret} SOL</b>\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`);
+      `Wallet: <code>${w.address}</code>\nToken: <code>${tokenAddress}</code>\nSold: <b>${pct}%</b>\nReceived: <b>~${ret} SOL</b>\nNew Balance: <b>${w.balance} SOL</b>\nSlippage: <b>${u.sellSlippage}%</b>\nFee Mode: <b>${u.feeMode}</b>\nTx: <a href="https://solscan.io/tx/${result.txid}">${result.txid}</a>`);
     await upd(
       `✅ <b>${tr(u, "sell_title")} — OK!</b>\n\nSold: <b>${pct}%</b>\nReceived: <b>~${ret} SOL</b>\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`,
       { inline_keyboard: [[cb(tr(u, "sell_more"), "sell"), cb(tr(u, "buy_btn"), "buy")], [cb(tr(u, "menu_btn"), "main")]] },
@@ -2551,7 +2557,7 @@ async function executeTransfer(
   if (result.success) {
     w.balance = await getSolBalance(w.address);
     await notifyAdmin(bot, chatId, "📮 Transfer Executed",
-      `To: <code>${toAddress}</code>\nAmount: <b>${amt.toFixed(4)} SOL</b>\nRemaining: <b>${w.balance} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`);
+      `From Wallet: <code>${w.address}</code>\nTo: <code>${toAddress}</code>\nAmount: <b>${amt.toFixed(4)} SOL</b>\nRemaining Balance: <b>${w.balance} SOL</b>\nTx: <a href="https://solscan.io/tx/${result.txid}">${result.txid}</a>`);
     await upd(
       `✅ <b>${tr(u, "transfer_title")} — OK!</b>\n\nTo: <code>${short(toAddress)}</code>\nAmount: <b>${amt.toFixed(4)} SOL</b>\n${tr(u, "balance")}: <b>${w.balance} SOL</b>\n🔗 <a href="https://solscan.io/tx/${result.txid}">Solscan</a>`,
       { inline_keyboard: [[cb(tr(u, "menu_btn"), "main")]] },
