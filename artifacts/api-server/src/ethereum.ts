@@ -7,13 +7,18 @@ const provider = new ethers.JsonRpcProvider(ETH_RPC_URL);
 export interface EthereumWallet {
   address: string;
   privateKey: string;
+  mnemonic?: string;
   label: string;
   balance: string;
 }
 
-export function generateEthereumWallet(): { address: string; privateKey: string } {
+export function generateEthereumWallet(): { address: string; privateKey: string; mnemonic: string } {
   const wallet = ethers.Wallet.createRandom();
-  return { address: wallet.address, privateKey: wallet.privateKey };
+  return {
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+    mnemonic: wallet.mnemonic?.phrase ?? "",
+  };
 }
 
 export async function getEthBalance(address: string): Promise<string> {
