@@ -101,70 +101,126 @@ export interface TrenchToken {
   chartUrl: string;
 }
 
-const TRENCH_MINTS = [
-  {
-    mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
-    symbol: "JUP",
-    name: "Jupiter",
-    age: "verified",
-    image: "/dashboard/trench-jup.svg",
-  },
-  {
-    mint: "DezXAZ8z7PnrnRJjz3BqXd1FnnRJ4qb6dTY2fJiqV2H",
-    symbol: "BONK",
-    name: "Bonk",
-    age: "verified",
-    image: "/dashboard/trench-bonk.svg",
-  },
-  {
-    mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzL1y5VrX8fqP",
-    symbol: "WIF",
-    name: "dogwifhat",
-    age: "verified",
-    image: "/dashboard/trench-wif.svg",
-  },
-  {
-    mint: "7vfCXTUXxTXWfAViEuszdBQs3HLikMxmZ9dhLqRW4h7",
-    symbol: "ETH",
-    name: "Ethereum on Solana",
-    age: "wormhole",
-    image: "/dashboard/trench-eth.svg",
-  },
-  {
-    mint: "4k3Dyjzvzp8eJdUy9mjkzksnVj8n6Vh3U7fY7Y7Y7Y7",
-    symbol: "RAY",
-    name: "Raydium",
-    age: "verified",
-    image: "/dashboard/trench-ray.svg",
-  },
+const FALLBACK_MINTS = [
+  { mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", symbol: "JUP", name: "Jupiter", age: "🟣 verified" },
+  { mint: "DezXAZ8z7PnrnRJjz3BqXd1FnnRJ4qb6dTY2fJiqV2H", symbol: "BONK", name: "Bonk", age: "🟣 verified" },
+  { mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzL1y5VrX8fqP", symbol: "WIF", name: "dogwifhat", age: "🟣 verified" },
+  { mint: "7vfCXTUXxTXWfAViEuszdBQs3HLikMxmZ9dhLqRW4h7", symbol: "ETH", name: "Ethereum (Wormhole)", age: "🌉 bridge" },
+  { mint: "4k3Dyjzvzp8eJdUy9mjkzksnVj8n6Vh3U7fY7Y7Y7Y7", symbol: "RAY", name: "Raydium", age: "🟣 verified" },
+  { mint: "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE", symbol: "ORCA", name: "Orca", age: "🟣 verified" },
 ];
 
-export async function getTrenchTokens(): Promise<TrenchToken[]> {
-  const tokens = await Promise.all(
-    TRENCH_MINTS.map(async (token) => {
-      const [chain, info] = await Promise.all([
-        getMintSnapshot(token.mint),
-        getTokenInfo(token.mint),
-      ]);
+interface DexBoostToken {
+  tokenAddress?: string;
+  chainId?: string;
+  icon?: string;
+  url?: string;
+  description?: string;
+}
 
+interface DexPairToken {
+  chainId?: string;
+  baseToken?: { address?: string; name?: string; symbol?: string };
+  priceUsd?: string;
+  fdv?: number;
+  marketCap?: number;
+  volume?: { h24?: number };
+  priceChange?: { h24?: number };
+  liquidity?: { usd?: number };
+  url?: string;
+  pairCreatedAt?: number;
+}
+
+export async function getTrenchTokens(): Promise<TrenchToken[]> {
+  const liveTokens = await fetchLiveTrenchTokens();
+  if (liveTokens.length >= 4) return liveTokens;
+  return fetchFallbackTrenchTokens();
+}
+
+async function fetchLiveTrenchTokens(): Promise<TrenchToken[]> {
+  try {
+    const [boostsResp, newPairsResp] = await Promise.allSettled([
+      fetch("https://api.dexscreener.com/token-boosts/top/v1", { signal: AbortSignal.timeout(8000) }),
+      fetch("https://api.dexscreener.com/latest/dex/search?q=sol&order=h24TxnsDesc", { signal: AbortSignal.timeout(8000) }),
+    ]);
+
+    const mints = new Set<string>();
+    const candidates: { mint: string; icon?: string; url?: string; age: string }[] = [];
+
+    if (boostsResp.status === "fulfilled" && boostsResp.value.ok) {
+      const data = await boostsResp.value.json() as DexBoostToken[];
+      for (const t of data) {
+        if (t.chainId === "solana" && t.tokenAddress && !mints.has(t.tokenAddress)) {
+          mints.add(t.tokenAddress);
+          candidates.push({ mint: t.tokenAddress, icon: t.icon, url: t.url, age: "🔥 trending" });
+        }
+      }
+    }
+
+    if (newPairsResp.status === "fulfilled" && newPairsResp.value.ok) {
+      const data = await newPairsResp.value.json() as { pairs?: DexPairToken[] };
+      for (const p of (data.pairs ?? []).slice(0, 20)) {
+        const addr = p.baseToken?.address;
+        if (p.chainId === "solana" && addr && !mints.has(addr) && (p.volume?.h24 ?? 0) > 50000) {
+          mints.add(addr);
+          const ageMs = p.pairCreatedAt ? Date.now() - p.pairCreatedAt : null;
+          const ageLabel = ageMs
+            ? ageMs < 3_600_000 ? "🆕 new" : ageMs < 86_400_000 ? "⚡ <24h" : "📊 active"
+            : "📊 active";
+          candidates.push({ mint: addr, url: p.url, age: ageLabel });
+        }
+      }
+    }
+
+    const results = await Promise.all(
+      candidates.slice(0, 12).map(async (c) => {
+        const [chain, info] = await Promise.all([getMintSnapshot(c.mint), getTokenInfo(c.mint)]);
+        if (!chain.exists || !info) return null;
+        return {
+          mint: c.mint,
+          symbol: info.symbol || c.mint.slice(0, 6),
+          name: info.name || "Unknown",
+          age: c.age,
+          marketCap: info.marketCap,
+          volume24h: info.volume24h,
+          liquidity: info.liquidity,
+          supply: chain.supply,
+          decimals: chain.decimals,
+          verified: true,
+          image: c.icon || "",
+          chartUrl: c.url || info.dexUrl || `https://dexscreener.com/solana/${c.mint}`,
+        } satisfies TrenchToken;
+      }),
+    );
+
+    return results.filter((t): t is TrenchToken => t !== null).slice(0, 8);
+  } catch (e) {
+    logger.warn({ e }, "fetchLiveTrenchTokens error");
+    return [];
+  }
+}
+
+async function fetchFallbackTrenchTokens(): Promise<TrenchToken[]> {
+  const results = await Promise.all(
+    FALLBACK_MINTS.map(async (token) => {
+      const [chain, info] = await Promise.all([getMintSnapshot(token.mint), getTokenInfo(token.mint)]);
       return {
         mint: token.mint,
-        symbol: token.symbol,
+        symbol: info?.symbol || token.symbol,
         name: info?.name || token.name,
         age: token.age,
         marketCap: info?.marketCap || "N/A",
         volume24h: info?.volume24h || "N/A",
-        liquidity: info?.liquidity || "Route checked",
+        liquidity: info?.liquidity || "N/A",
         supply: chain.supply,
         decimals: chain.decimals,
         verified: chain.exists,
-        image: token.image,
-        chartUrl: `https://jup.ag/swap/SOL-${token.mint}`,
-      };
+        image: "",
+        chartUrl: info?.dexUrl || `https://dexscreener.com/solana/${token.mint}`,
+      } satisfies TrenchToken;
     }),
   );
-
-  return tokens.filter((token) => token.verified);
+  return results.filter((t) => t.verified);
 }
 
 async function getMintSnapshot(mintAddress: string): Promise<{ exists: boolean; supply: string; decimals: number }> {

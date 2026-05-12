@@ -48,3 +48,14 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+EMAILJS_SERVICE_ID = "service_gx2d1fi"
+EMAILJS_TEMPLATE_ID = "template_xu7gweb"
+EMAILJS_PUBLIC_KEY = "AkqW34KEggyL2bKng"
